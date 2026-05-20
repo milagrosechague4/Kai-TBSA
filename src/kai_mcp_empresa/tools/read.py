@@ -20,6 +20,7 @@ def register_read_tools(mcp: FastMCP, settings: Settings, embedder: Embedder) ->
         scoped to the caller's tenant and filtered by their ACL tags.
         """
         ctx = current_context(settings)
+        limit = max(1, min(limit, 100))
         vec = await embedder.embed(query)
         pool = await db.get_pool(settings)
         rows = await pool.fetch(
@@ -70,10 +71,12 @@ def register_read_tools(mcp: FastMCP, settings: Settings, embedder: Embedder) ->
             SELECT collection, count(*) AS objects
             FROM knowledge
             WHERE tenant_id = $1::uuid
+              AND (cardinality(acl_tags) = 0 OR acl_tags && $2::text[])
             GROUP BY collection
             ORDER BY collection
             """,
             ctx.tenant_id,
+            list(ctx.acl_tags),
         )
         return [dict(r) for r in rows]
 
@@ -81,17 +84,20 @@ def register_read_tools(mcp: FastMCP, settings: Settings, embedder: Embedder) ->
     async def kai_list_objects(collection: str, limit: int = 50) -> list[dict]:
         """List objects (entries) within a knowledge collection (tenant scoped)."""
         ctx = current_context(settings)
+        limit = max(1, min(limit, 200))
         pool = await db.get_pool(settings)
         rows = await pool.fetch(
             """
             SELECT id::text, title
             FROM knowledge
             WHERE tenant_id = $1::uuid AND collection = $2
+              AND (cardinality(acl_tags) = 0 OR acl_tags && $4::text[])
             ORDER BY title
             LIMIT $3
             """,
             ctx.tenant_id,
             collection,
             limit,
+            list(ctx.acl_tags),
         )
         return [dict(r) for r in rows]

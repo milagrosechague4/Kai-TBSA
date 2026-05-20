@@ -49,7 +49,11 @@ async def seed() -> None:
     emb = FakeEmbedder(1536)
     c = await asyncpg.connect(DB)
     await register_vector(c)
-    await c.execute("DELETE FROM knowledge WHERE collection IN ('playbooks','metrics','scoptest')")
+    await c.execute(
+        "DELETE FROM knowledge WHERE tenant_id = ANY($1::uuid[]) "
+        "AND collection IN ('playbooks','metrics','scoptest')",
+        [TENANT_A, TENANT_B],
+    )
     rows = [
         ("playbooks", "Refund policy", "Refunds within 14 days for unused items."),
         ("playbooks", "Onboarding checklist", "Kickoff call, access setup, first report week 1."),

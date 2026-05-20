@@ -65,6 +65,11 @@ In production every request carries a Clerk-issued JWT. `JWTVerifier` checks
 signature (JWKS), issuer, expiry, and audience. The tenant id, user id, role and
 ACL tags are read from token claims and used to scope every query.
 
+**Known limitation (v1):** a valid token for the wrong tenant is rejected at the
+tool layer (`ForbiddenError`) rather than mapped to an HTTP 403 status. Access is
+blocked either way; surfacing it as a proper 403 needs FastMCP middleware and is a
+follow-up.
+
 ## Threat Model
 
 This server defends explicitly against the following (per spec § seguridad

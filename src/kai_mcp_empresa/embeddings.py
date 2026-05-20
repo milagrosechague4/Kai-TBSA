@@ -25,8 +25,15 @@ class OpenAIEmbedder:
         self.dim = dim
 
     async def embed(self, text: str) -> list[float]:
-        resp = await self._client.embeddings.create(model=self.model, input=text)
-        return list(resp.data[0].embedding)
+        resp = await self._client.embeddings.create(
+            model=self.model, input=text, dimensions=self.dim
+        )
+        vec = list(resp.data[0].embedding)
+        if len(vec) != self.dim:
+            raise ValueError(
+                f"embedding dim {len(vec)} != expected {self.dim} for model {self.model}"
+            )
+        return vec
 
 
 class FakeEmbedder:

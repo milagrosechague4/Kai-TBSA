@@ -79,3 +79,50 @@ async def test_log_interaction_writes_audit_row():
             "log_interaction", {"tool": "kai_search", "outcome": "ok", "latency_ms": 12}
         )
     assert result.data["logged"] is True
+
+
+async def test_list_tools_are_acl_scoped():
+    """A caller without the ACL tag must not see a restricted collection via the
+    list tools (regression for the codex P1: list tools were tenant- but not
+    ACL-scoped)."""
+    if not await _db_reachable():
+        pytest.skip("no database reachable")
+
+    emb = FakeEmbedder(1536)
+    vp = await emb.embed("public")
+    vs = await emb.embed("secret")
+    conn = await asyncpg.connect(DB_URL)
+    await register_vector(conn)
+    await conn.execute(
+        "DELETE FROM knowledge WHERE tenant_id=$1::uuid AND collection IN ('acl_public','acl_secret')",
+        TENANT_A,
+    )
+    await conn.execute(
+        "INSERT INTO knowledge (tenant_id,collection,title,content,acl_tags,embedding) "
+        "VALUES ($1::uuid,'acl_public','Public doc','open to all',$2,$3)",
+        TENANT_A, [], vp,
+    )
+    await conn.execute(
+        "INSERT INTO knowledge (tenant_id,collection,title,content,acl_tags,embedding) "
+        "VALUES ($1::uuid,'acl_secret','Secret doc','restricted',$2,$3)",
+        TENANT_A, ["secret"], vs,
+    )
+    await conn.close()
+
+    # dev caller has empty ACL → sees the public collection, never the restricted one
+    mcp, _ = build_server(make_settings(tenant_id=TENANT_A))
+    async with Client(mcp) as client:
+        cols = await client.call_tool("kai_list_collections", {})
+        names = {r["collection"] for r in cols.data}
+        secret_objs = await client.call_tool("kai_list_objects", {"collection": "acl_secret"})
+
+    assert "acl_public" in names
+    assert "acl_secret" not in names, "list tools must hide ACL-restricted collections"
+    assert secret_objs.data == []
+
+    conn = await asyncpg.connect(DB_URL)
+    await conn.execute(
+        "DELETE FROM knowledge WHERE tenant_id=$1::uuid AND collection IN ('acl_public','acl_secret')",
+        TENANT_A,
+    )
+    await conn.close()

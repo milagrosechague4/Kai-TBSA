@@ -46,13 +46,21 @@ class Settings(BaseSettings):
     embedding_dim: int = Field(1536, alias="KAI_EMBEDDING_DIM")
 
     def validate_fail_closed(self) -> None:
-        """Refuse to start without auth unless explicitly disabled for local dev."""
+        """Refuse to start in an unsafe configuration."""
         if self.auth_disabled:
+            # The dev escape hatch must never be reachable off-host: refuse to
+            # bind anywhere but loopback when auth is disabled.
+            if self.host not in ("127.0.0.1", "localhost", "::1"):
+                raise SystemExit(
+                    f"FATAL: KAI_AUTH_DISABLED=true is dev-only and refuses to bind to a "
+                    f"non-loopback host ({self.host!r}). Configure Clerk auth for any "
+                    f"exposed deployment."
+                )
             return
-        if not (self.clerk_jwks_uri and self.audience):
+        if not (self.clerk_jwks_uri and self.clerk_issuer and self.audience):
             raise SystemExit(
-                "FATAL: auth not configured. Set CLERK_JWKS_URI + KAI_MCP_AUDIENCE, "
-                "or set KAI_AUTH_DISABLED=true for local dev only."
+                "FATAL: auth not configured. Set CLERK_JWKS_URI + CLERK_ISSUER + "
+                "KAI_MCP_AUDIENCE, or set KAI_AUTH_DISABLED=true for local dev only."
             )
 
 

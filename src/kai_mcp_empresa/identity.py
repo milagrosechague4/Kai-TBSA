@@ -42,13 +42,17 @@ def context_from_claims(settings: Settings, claims: dict) -> TenantContext:
     if str(token_tenant) != str(settings.tenant_id):
         raise ForbiddenError("token tenant does not match this instance")
 
+    sub = claims.get("sub")
+    if not sub:
+        raise ForbiddenError("token is missing the subject (sub) claim")
+
     acl = claims.get(settings.claim_acl) or []
     if isinstance(acl, str):
         acl = [acl]
 
     return TenantContext(
         tenant_id=str(settings.tenant_id),
-        user_id=str(claims.get("sub", "unknown")),
+        user_id=str(sub),
         role=claims.get(settings.claim_role),
         acl_tags=tuple(str(t) for t in acl),
     )
