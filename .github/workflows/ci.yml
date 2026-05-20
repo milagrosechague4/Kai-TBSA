@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: kai
+          POSTGRES_PASSWORD: kai
+          POSTGRES_DB: kai_empresa
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U kai -d kai_empresa"
+          --health-interval 3s --health-timeout 3s --health-retries 15
+    env:
+      DATABASE_URL: postgresql://kai:kai@localhost:5433/kai_empresa
+      KAI_AUTH_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply schema
+        run: PGPASSWORD=kai psql -h localhost -p 5433 -U kai -d kai_empresa -f schema.sql
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync dependencies (locked)
+        run: uv sync --extra dev --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Tool catalog snapshot (anti tool-poisoning gate)
+        run: uv run pytest tests/test_tool_catalog_snapshot.py -q
+
+      - name: Tests
+        run: uv run pytest -q

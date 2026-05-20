@@ -1,0 +1,104 @@
+[
+  {
+    "name": "kai_fetch",
+    "description": "Fetch a single knowledge entry by id (tenant + ACL scoped).\n\nReturns null if the entry does not exist or is not visible to the caller.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "kai_list_collections",
+    "description": "List the knowledge collections (groupings) available in the company.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "kai_list_objects",
+    "description": "List objects (entries) within a knowledge collection (tenant scoped).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collection"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "kai_search",
+    "description": "Semantic search over the company knowledge base.\n\nReturns the most relevant knowledge entries for a natural-language query,\nscoped to the caller's tenant and filtered by their ACL tags.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "default": 8,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "log_interaction",
+    "description": "Append a tool-call record to the tenant audit log.\n\nStores only opaque ids + metrics \u2014 never bearer tokens or prompt content.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "outcome": {
+          "default": "ok",
+          "type": "string"
+        },
+        "cost_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "latency_ms": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tool"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "who_am_i",
+    "description": "Return the caller's identity profile (role, peers, tools, tone).\n\nLets the agent resolve \"my lead\", \"legal\", \"the standard metrics\" without\nthe user repeating context. Reads the latest who-am-I snapshot for the caller.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    }
+  }
+]
