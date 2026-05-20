@@ -24,7 +24,7 @@ def register_read_tools(mcp: FastMCP, settings: Settings, embedder: Embedder) ->
         pool = await db.get_pool(settings)
         rows = await pool.fetch(
             """
-            SELECT id::text, collection, title, content, acl_tags,
+            SELECT id::text, collection, title, content, acl_tags, source,
                    1 - (embedding <=> $1) AS score
             FROM knowledge
             WHERE tenant_id = $2::uuid
@@ -49,7 +49,7 @@ def register_read_tools(mcp: FastMCP, settings: Settings, embedder: Embedder) ->
         pool = await db.get_pool(settings)
         row = await pool.fetchrow(
             """
-            SELECT id::text, collection, title, content, acl_tags
+            SELECT id::text, collection, title, content, acl_tags, source
             FROM knowledge
             WHERE id = $1::uuid AND tenant_id = $2::uuid
               AND (cardinality(acl_tags) = 0 OR acl_tags && $3::text[])

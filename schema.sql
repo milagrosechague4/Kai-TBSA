@@ -23,11 +23,13 @@ CREATE TABLE IF NOT EXISTS knowledge (
     title      text        NOT NULL,
     content    text        NOT NULL,
     acl_tags   text[]      NOT NULL DEFAULT '{}',
+    source     text,        -- provenance: which ingest source produced this row (for incremental re-ingest)
     embedding  vector(1536),
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS knowledge_tenant_idx ON knowledge (tenant_id);
 CREATE INDEX IF NOT EXISTS knowledge_collection_idx ON knowledge (tenant_id, collection);
+CREATE INDEX IF NOT EXISTS knowledge_source_idx ON knowledge (tenant_id, source);
 CREATE INDEX IF NOT EXISTS knowledge_embedding_idx
     ON knowledge USING hnsw (embedding vector_cosine_ops);
 

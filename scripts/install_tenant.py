@@ -16,15 +16,12 @@ import json
 import os
 import pathlib
 import sys
-import uuid
 
 import asyncpg
 
+from kai_mcp_empresa.identity import tenant_id_for
+
 DSN = os.environ.get("DATABASE_URL", "postgresql://kai:kai@localhost:5433/kai_empresa")
-
-
-def tenant_id_for(slug: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, "kai-tenant:" + slug))
 
 
 async def install(spec_path: str) -> None:

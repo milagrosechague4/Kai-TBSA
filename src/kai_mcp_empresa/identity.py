@@ -7,11 +7,19 @@ tenant is read from the token, not from arguments.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 
 from fastmcp.exceptions import ToolError
 
 from .config import Settings
+
+_TENANT_NS = uuid.NAMESPACE_URL
+
+
+def tenant_id_for(slug: str) -> str:
+    """Deterministic tenant_id from a company slug (uuid5). Stable across runs."""
+    return str(uuid.uuid5(_TENANT_NS, "kai-tenant:" + slug))
 
 
 class ForbiddenError(ToolError):
