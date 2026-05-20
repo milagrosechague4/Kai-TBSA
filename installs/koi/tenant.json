@@ -1,0 +1,130 @@
+{
+  "slug": "koi-ventures",
+  "name": "Koi Ventures",
+  "note": "First tenant install. Identity layer (users + who_am_i + rules) modeled from the spec/known org. Knowledge base + connectors pending KOI-side data + creds. user_id values are placeholders until mapped to Clerk subs at onboarding.",
+  "connectors_needed": ["notion", "drive", "slack", "gmail", "airtable", "fathom"],
+  "users": [
+    {
+      "user_id": "pablo",
+      "role": "co-ceo",
+      "acl_tags": ["financials", "portfolio", "lp-relations", "strategy"],
+      "profile": {
+        "nombre": "Pablo",
+        "rol": "Co-CEO",
+        "empresa": "Koi Ventures",
+        "area": "Vision / Fundraising",
+        "seniority": "Founder",
+        "lider": null,
+        "peers": [
+          {"user_id": "mili", "nombre": "Mili", "rol": "Co-CEO", "area": "Operations + Portfolio"},
+          {"user_id": "mitch", "nombre": "Mitch", "rol": "Partner", "area": "Tech / Infra"}
+        ],
+        "direct_reports": [],
+        "expertise_areas": ["vision", "fundraising", "GP relations", "deal sourcing"],
+        "escalation_paths": {"technical": "mitch", "operations": "mili"},
+        "tools_principales": ["notion", "gmail", "slack", "fathom"],
+        "tone_preferido": ["directo", "espanol argentino", "informal con equipo, formal con LPs"],
+        "formato_default": {"fecha": "DD/MM/YYYY", "moneda": "USD", "idioma": "es-AR"}
+      }
+    },
+    {
+      "user_id": "mili",
+      "role": "co-ceo",
+      "acl_tags": ["financials", "portfolio", "lp-relations", "strategy"],
+      "profile": {
+        "nombre": "Mili Gutierrez",
+        "rol": "Co-CEO",
+        "empresa": "Koi Ventures",
+        "area": "Operations + Portfolio",
+        "seniority": "Founder",
+        "lider": null,
+        "peers": [
+          {"user_id": "pablo", "nombre": "Pablo", "rol": "Co-CEO", "area": "Vision"},
+          {"user_id": "mitch", "nombre": "Mitch", "rol": "Partner", "area": "Tech / Infra"}
+        ],
+        "direct_reports": [
+          {"user_id": "andy", "nombre": "Andy", "rol": "Analyst"},
+          {"user_id": "juanita", "nombre": "Juanita", "rol": "Investor Relations"}
+        ],
+        "expertise_areas": ["VC deal flow", "portfolio company management", "LP relations"],
+        "escalation_paths": {"technical": "mitch", "legal": "pablo"},
+        "tools_principales": ["airtable", "notion", "gmail", "slack", "fathom"],
+        "tone_preferido": ["directo, sin floritura", "espanol argentino", "informal con peers, formal con LPs"],
+        "formato_default": {"fecha": "DD/MM/YYYY", "moneda": "USD", "idioma": "es-AR"}
+      }
+    },
+    {
+      "user_id": "mitch",
+      "role": "partner",
+      "acl_tags": ["financials", "portfolio", "lp-relations", "strategy", "infra"],
+      "profile": {
+        "nombre": "Mitch",
+        "rol": "Partner",
+        "empresa": "Koi Ventures",
+        "area": "Tech / Infra",
+        "seniority": "Partner",
+        "lider": null,
+        "peers": [
+          {"user_id": "pablo", "nombre": "Pablo", "rol": "Co-CEO", "area": "Vision"},
+          {"user_id": "mili", "nombre": "Mili", "rol": "Co-CEO", "area": "Operations"}
+        ],
+        "direct_reports": [],
+        "expertise_areas": ["technical architecture", "infra", "MCP / AI", "data"],
+        "escalation_paths": {},
+        "tools_principales": ["github", "slack", "notion"],
+        "tone_preferido": ["tecnico", "directo", "espanol argentino"],
+        "formato_default": {"fecha": "DD/MM/YYYY", "moneda": "USD", "idioma": "es-AR"}
+      }
+    },
+    {
+      "user_id": "andy",
+      "role": "analyst",
+      "acl_tags": ["portfolio", "research"],
+      "profile": {
+        "nombre": "Andy",
+        "rol": "Analyst",
+        "empresa": "Koi Ventures",
+        "area": "Portfolio / Research",
+        "seniority": "Analyst",
+        "lider": "mili",
+        "peers": [{"user_id": "juanita", "nombre": "Juanita", "rol": "Investor Relations"}],
+        "direct_reports": [],
+        "expertise_areas": ["deal analysis", "research", "data"],
+        "escalation_paths": {"portfolio": "mili", "technical": "mitch"},
+        "tools_principales": ["airtable", "notion", "excel"],
+        "tone_preferido": ["directo", "espanol argentino"],
+        "formato_default": {"fecha": "DD/MM/YYYY", "moneda": "USD", "idioma": "es-AR"}
+      }
+    },
+    {
+      "user_id": "juanita",
+      "role": "investor-relations",
+      "acl_tags": ["lp-relations", "reporting"],
+      "profile": {
+        "nombre": "Juanita",
+        "rol": "Investor Relations",
+        "empresa": "Koi Ventures",
+        "area": "LP Relations",
+        "seniority": "Mid",
+        "lider": "mili",
+        "peers": [{"user_id": "andy", "nombre": "Andy", "rol": "Analyst"}],
+        "direct_reports": [],
+        "expertise_areas": ["LP relations", "fund reporting", "communications"],
+        "escalation_paths": {"operations": "mili"},
+        "tools_principales": ["gmail", "notion", "fathom"],
+        "tone_preferido": ["formal con LPs", "espanol argentino"],
+        "formato_default": {"fecha": "DD/MM/YYYY", "moneda": "USD", "idioma": "es-AR"}
+      }
+    }
+  ],
+  "rules": [
+    {
+      "scope": "data-privacy",
+      "body": "LP and portfolio-company data is confidential. Never include it in external communications without explicit human approval. Financials are restricted to founders + partner (Pablo, Mili, Mitch)."
+    },
+    {
+      "scope": "communication",
+      "body": "Internal tone: directo, espanol argentino. External to LPs: formal. Default currency USD, dates DD/MM/YYYY."
+    }
+  ]
+}
