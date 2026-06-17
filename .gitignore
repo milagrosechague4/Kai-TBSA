@@ -11,7 +11,13 @@ __pycache__/
 .env.*
 !.env.example
 
-# DB
+# Bearer tokens (the whitelist) — secrets, NEVER commit
+tokens.json
+
+# Company brains (tenant data) — NEVER commit; lives in Drive/volume
+data/
+
+# DB (legacy local postgres dir from the v1 stack)
 pgdata/
 
 # OS

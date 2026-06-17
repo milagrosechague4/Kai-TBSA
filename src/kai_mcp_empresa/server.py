@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from .auth import build_auth
 from .config import Settings, get_settings
-from .embeddings import build_embedder
-from .tools.read import register_read_tools
-from .tools.special import register_special_tools
+from .tools.files import register_tools
 
 
 def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
@@ -16,7 +16,12 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
     settings.validate_fail_closed()
 
     mcp = FastMCP(name="kai-mcp-empresa", auth=build_auth(settings))
-    embedder = build_embedder(settings)
-    register_read_tools(mcp, settings, embedder)
-    register_special_tools(mcp, settings)
+    register_tools(mcp, settings)
+
+    # Unauthenticated liveness probe for platform healthchecks (Railway, etc.).
+    # The MCP endpoint itself does not 200 on a plain GET, so deploys point here.
+    @mcp.custom_route("/healthz", methods=["GET"])
+    async def healthz(_: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok"})
+
     return mcp, settings

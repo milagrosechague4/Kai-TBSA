@@ -1,6 +1,14 @@
-"""Runtime settings. Fail-closed on auth by design."""
+"""Runtime settings. Fail-closed on auth by design.
+
+The company brain is a folder of markdown files on disk. A bearer token maps a
+caller to a tenant (a subfolder under KAI_DATA_ROOT) plus an identity. The token
+file is the whitelist: who has a token is who gets in. Auth runs at the transport
+edge; a tenant is NEVER an argument to a tool.
+"""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,7 +16,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", extra="ignore", populate_by_name=True
+        env_file=".env",
+        extra="ignore",
+        populate_by_name=True,
+        # case_sensitive is REQUIRED: without it the `path` field matches the
+        # shell's $PATH env var (case-insensitive), mounting the server at a
+        # garbage URL. Aliases are explicit uppercase, so this is safe.
+        case_sensitive=True,
     )
 
     # Server
@@ -16,51 +30,55 @@ class Settings(BaseSettings):
     port: int = Field(8080, alias="KAI_MCP_PORT")
     path: str = Field("/mcp", alias="KAI_MCP_PATH")
 
-    # Database
-    database_url: str = Field(
-        "postgresql://kai:kai@localhost:5433/kai_empresa", alias="DATABASE_URL"
-    )
+    # Data root: the parent dir holding one folder per tenant (the company brain).
+    data_root: Path = Field(Path("./data"), alias="KAI_DATA_ROOT")
 
-    # Tenant this instance serves (token tenant claim must match → else 403)
-    tenant_id: str = Field(
-        "00000000-0000-0000-0000-000000000001", alias="KAI_TENANT_ID"
-    )
+    # Auth — bearer tokens. JSON map:
+    #   { "<token>": { "tenant": "koi", "user": "mili", "role": "cfo" }, ... }
+    # Whitelist == the set of tokens present. Revoke == delete an entry.
+    # Two ways to supply it (env var wins): KAI_TOKENS_JSON carries the JSON
+    # inline (12-factor — use this on Railway/cloud, store it as a secret), or
+    # KAI_TOKENS_FILE points at a file on disk (local dev).
+    tokens_json: str | None = Field(None, alias="KAI_TOKENS_JSON")
+    tokens_file: Path = Field(Path("./tokens.json"), alias="KAI_TOKENS_FILE")
 
-    # Auth (OAuth 2.1 / Clerk)
-    clerk_jwks_uri: str | None = Field(None, alias="CLERK_JWKS_URI")
-    clerk_issuer: str | None = Field(None, alias="CLERK_ISSUER")
-    audience: str = Field("kai-mcp-empresa", alias="KAI_MCP_AUDIENCE")
-    claim_tenant: str = Field("org_id", alias="KAI_CLAIM_TENANT")
-    claim_role: str = Field("role", alias="KAI_CLAIM_ROLE")
-    claim_acl: str = Field("acl_tags", alias="KAI_CLAIM_ACL")
-
-    # Dev escape hatch (never true in prod)
+    # Dev escape hatch (never reachable off loopback — see validate_fail_closed).
     auth_disabled: bool = Field(False, alias="KAI_AUTH_DISABLED")
-    dev_user_id: str = Field(
-        "00000000-0000-0000-0000-0000000000aa", alias="KAI_DEV_USER_ID"
-    )
+    dev_tenant: str = Field("dev", alias="KAI_DEV_TENANT")
+    dev_user: str = Field("dev", alias="KAI_DEV_USER")
 
-    # Embeddings
-    openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
-    embedding_model: str = Field("text-embedding-3-small", alias="KAI_EMBEDDING_MODEL")
-    embedding_dim: int = Field(1536, alias="KAI_EMBEDDING_DIM")
+    # Write guardrails.
+    max_file_bytes: int = Field(1_000_000, alias="KAI_MAX_FILE_BYTES")
+    # Extensions a tool may read/write. Keeps the brain text/markdown, not binaries.
+    allowed_suffixes: tuple[str, ...] = (
+        ".md",
+        ".markdown",
+        ".txt",
+        ".json",
+        ".csv",
+        ".yaml",
+        ".yml",
+    )
 
     def validate_fail_closed(self) -> None:
         """Refuse to start in an unsafe configuration."""
         if self.auth_disabled:
-            # The dev escape hatch must never be reachable off-host: refuse to
-            # bind anywhere but loopback when auth is disabled.
+            # The dev escape hatch must never be reachable off-host.
             if self.host not in ("127.0.0.1", "localhost", "::1"):
                 raise SystemExit(
                     f"FATAL: KAI_AUTH_DISABLED=true is dev-only and refuses to bind to a "
-                    f"non-loopback host ({self.host!r}). Configure Clerk auth for any "
+                    f"non-loopback host ({self.host!r}). Provide a tokens file for any "
                     f"exposed deployment."
                 )
             return
-        if not (self.clerk_jwks_uri and self.clerk_issuer and self.audience):
+        if self.tokens_json:
+            return
+        if not self.tokens_file.exists():
             raise SystemExit(
-                "FATAL: auth not configured. Set CLERK_JWKS_URI + CLERK_ISSUER + "
-                "KAI_MCP_AUDIENCE, or set KAI_AUTH_DISABLED=true for local dev only."
+                f"FATAL: auth not configured. Set KAI_TOKENS_JSON, or point "
+                f"KAI_TOKENS_FILE at an existing file (current: {self.tokens_file}); "
+                f"see .env.example / scripts/install_tenant.py. Or set "
+                f"KAI_AUTH_DISABLED=true for local dev only."
             )
 
 

@@ -1,122 +1,157 @@
 # kai-mcp-empresa
 
-**Kai — Layer 2: per-tenant company MCP server.**
+**Kai — Layer 2: per-tenant company MCP server (files-over-app).**
 
-The MCP server that exposes a company's brain (knowledge base + identity + audit)
-as MCP tools, scoped hard per tenant. This is the "empresa" layer of Kai's
-3-layer architecture (persona filesystem → **empresa MCP** → cross-tenant MCP).
+The MCP server that exposes a company's brain — a folder of **markdown files** — as
+read/write tools, scoped hard per tenant. Each person on the team connects it from
+their AI of choice (Claude / ChatGPT) and reads & writes the company's context,
+to-dos, meeting notes and transcripts **in natural language**. No database, no
+vendor lock-in: the brain is just files on disk (a local folder, a Drive-synced
+folder, or a persistent volume).
 
-> Architecture source of truth:
-> `kairos-vault/proyectos/koi-copilot/installs/koi-ventures/architecture-koi-mcp.md`
-> (§ Componente 3 — MCP de empresa; § Decisiones técnicas cerradas; § Lo que SÍ es sagrado).
-> This repo implements the **v1 read+audit subset** of that spec.
+> This is the "empresa" layer of Kai's 3-layer architecture. The heavy
+> Postgres+pgvector+Clerk variant lives in git history (`feat: bootstrap Kai
+> layer-2 company MCP server`) and is parked; this is the lightweight,
+> file-based v1 the team actually connects to.
 
 ## Stack
 
-- **FastMCP** (Python) — Streamable HTTP transport (no SSE)
-- **Postgres + pgvector** — knowledge base with vector similarity
-- **OAuth 2.1 / Clerk** — JWT verification via JWKS, `aud` claim binds the token to this resource
-- **uv** — strict lockfile, exact pins
-- Embeddings: OpenAI `text-embedding-3-small` for dev; bge-large local in prod (privacy invariant)
+- **FastMCP** (Python) — Streamable HTTP transport
+- **Markdown files on disk** — one folder per tenant under `KAI_DATA_ROOT`
+- **Static bearer tokens** — a tokens file is the whitelist (who has a token is in)
+- **uv** — strict lockfile, exact pins. No DB, no embeddings.
 
-## Tools (v1)
+## Tools
 
-Six-Tool Pattern — universal `kai_*` verbs, never per-connector tools.
+Universal `kai_*` verbs over the company brain. The tenant is derived from the
+token and is **never** a tool argument.
 
-| Tool | Kind | What |
-|---|---|---|
-| `kai_search` | read | Vector similarity over the knowledge base (pgvector), tenant + ACL filtered |
-| `kai_fetch` | read | Get a single knowledge entry by id |
-| `kai_list_collections` | read | List collections (groupings) in the tenant |
-| `kai_list_objects` | read | List objects within a collection |
-| `who_am_i` | identity | Caller profile (Yamel pattern): role, peers, tools, tone |
-| `log_interaction` | audit | Append a tool-call record to the audit log |
+| Tool | What |
+|---|---|
+| `kai_read(path)` | Read one file (markdown/text) from the company brain |
+| `kai_write(path, content, mode)` | Create/update a file; `mode` = `overwrite` or `append` |
+| `kai_list(folder)` | List files and subfolders inside a folder |
+| `kai_search(query, limit)` | Case-insensitive substring search across all text files |
+| `who_am_i()` | Caller's tenant, user, role + their `_identity/<user>.md` profile |
 
-Out of v1 (→ Phase 2): mutating tools (`kai_upsert`, `kai_delete`), two-tier
-gating (`register_outbound_action` / `confirm_action`), connectors, `get_rules`.
-
-## Quick start
+## Quick start (local dev)
 
 ```bash
-# 1. DB
-docker compose up -d                 # Postgres + pgvector on :5433
-atlas migrate apply --env local      # apply schema
+uv sync --extra dev
 
-# 2. Env
-cp .env.example .env                 # fill keys (or set KAI_AUTH_DISABLED=true for local dev)
+# No auth, runs as the dev tenant on a local data folder (loopback only):
+KAI_AUTH_DISABLED=true KAI_DATA_ROOT=./data uv run kai-mcp-empresa
+#   → Streamable HTTP on http://127.0.0.1:8080/mcp
 
-# 3. Run
-uv run kai-mcp-empresa               # Streamable HTTP on http://127.0.0.1:8080/mcp
-
-# 4. Inspect
-npx @modelcontextprotocol/inspector http://127.0.0.1:8080/mcp
-
-# 5. Test
-uv run pytest
+uv run pytest          # 33 tests
+uv run ruff check .
 ```
+
+## Provisioning a tenant (the whitelist)
+
+1. Write a tenant spec (see `installs/koi.json`): the tenant slug + its users.
+2. Generate the brain folder + bearer tokens:
+
+   ```bash
+   uv run python scripts/install_tenant.py installs/koi.json
+   ```
+
+   This prints **one bearer token per user** (printed once). Hand each person
+   their line. The tokens land in `tokens.json` (gitignored — it's the whitelist).
+   Revoke someone by deleting their entry.
+
+3. Run the server pointing at the tokens file:
+
+   ```bash
+   KAI_TOKENS_FILE=./tokens.json KAI_DATA_ROOT=./data uv run kai-mcp-empresa
+   ```
+
+## Connecting from Claude / ChatGPT
+
+In Claude: **Settings → Connectors → Add custom connector**, paste the server URL
+(`https://<host>/mcp`) and the bearer token. Same idea in ChatGPT's custom
+connectors. Each squad member uses **their own** token from `tokens.json`.
+
+To expose a locally-running server quickly (Mat's laptop must stay on):
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8080   # gives a public https URL
+```
+
+## Deploy to Railway (permanent)
+
+Railway gives an always-on host with a **persistent volume** for the brain — the
+right home for this (Vercel-style serverless has an ephemeral filesystem). The
+image is the committed `Dockerfile`; `railway.toml` wires the healthcheck.
+
+1. **New project → Deploy from repo** (or `railway up`). Railway builds the Dockerfile.
+2. **Add a Volume** mounted at **`/data`** (Service → Settings → Volumes). This is
+   the company brain; it survives restarts and redeploys. `KAI_DATA_ROOT=/data`
+   is already set in the image.
+3. **Set the whitelist** as a service variable (Variables tab):
+   - `KAI_TOKENS_JSON` = the contents of your `tokens.json`
+     (`{"<token>": {"tenant":"koi","user":"mili","role":"cfo"}, ...}`).
+   Store it as a secret. Add/remove a person by editing this var (redeploys).
+4. **Deploy.** Railway gives a public HTTPS URL; the MCP is at `https://<app>.up.railway.app/mcp`,
+   liveness at `/healthz`.
+5. **Seed identity (optional, once):** open a shell on the service and run
+   `uv run python scripts/install_tenant.py installs/koi.json` to create the
+   tenant folder + `_identity/*.md` profiles on the volume. Everything else the
+   squad writes through the tools (`kai_write`).
+
+Health: `GET /healthz` → `{"status":"ok"}` (unauthenticated). The MCP endpoint
+itself (`/mcp`) requires a bearer token.
+
+For any other host, the same image works: mount a persistent volume (or a
+Drive-synced folder) at `KAI_DATA_ROOT` and provide `KAI_TOKENS_JSON`, behind HTTPS.
 
 ## Auth
 
 Fail-closed. The server **refuses to start** unless either:
-- `CLERK_JWKS_URI` + `KAI_MCP_AUDIENCE` are set (production path), or
-- `KAI_AUTH_DISABLED=true` is set explicitly (local dev only — every request runs as `KAI_DEV_TENANT_ID`).
+- `KAI_TOKENS_FILE` points to an existing tokens file (production path), or
+- `KAI_AUTH_DISABLED=true` is set explicitly (local dev only — binds loopback
+  only, every request runs as `KAI_DEV_TENANT` / `KAI_DEV_USER`).
 
-In production every request carries a Clerk-issued JWT. `JWTVerifier` checks
-signature (JWKS), issuer, expiry, and audience. The tenant id, user id, role and
-ACL tags are read from token claims and used to scope every query.
+Each token entry carries `{ tenant, user, role }`. Those become the request's
+identity; the tenant scopes every file path. Tokens are never logged or echoed
+into tool output.
 
-**Known limitation (v1):** a valid token for the wrong tenant is rejected at the
-tool layer (`ForbiddenError`) rather than mapped to an HTTP 403 status. Access is
-blocked either way; surfacing it as a proper 403 needs FastMCP middleware and is a
-follow-up.
+## Threat model
 
-## Threat Model
-
-This server defends explicitly against the following (per spec § seguridad
-supply-chain + tool integrity). Anything not listed is assumed mitigated upstream.
-
-### Tenant escape (cross-tenant data leak)
-- **Defense:** every DB query is parameterized by `tenant_id` derived **only**
-  from the verified token — never from tool arguments. A tool cannot request
-  another tenant's data because the tenant is not an input. ACL tags filter
-  further within a tenant.
-- **Tested:** `tests/test_tools_scoping.py` asserts a tool call bound to tenant A
-  cannot read tenant B's rows.
+### Cross-tenant / path escape (the core defense)
+- Every path a tool receives is resolved through `fs.resolve_within`, which
+  rejects `..` traversal and confirms the fully-resolved real path (symlinks
+  included) stays inside the tenant root. The tenant comes from the token, never
+  from arguments — a caller cannot name another tenant's folder.
+- **Tested:** `tests/test_fs_scoping.py` (traversal, absolute paths, symlink escape)
+  and `tests/test_tools_e2e.py` (traversal blocked through the live client).
 
 ### Token leakage
-- **Defense:** tokens are NEVER logged, returned in tool output, or written to
-  the audit log / traces. The audit log stores `user_id` + `tenant_id` (opaque
-  UUIDs), never the bearer token. Verification happens at the transport edge.
+- Tokens are the dict keys in the tokens file; they are never logged, returned in
+  tool output, or used as a `client_id` (that's `tenant:user`).
 
 ### Tool poisoning (silent change of a tool's contract)
-- **Defense:** CI runs a snapshot test of the tool catalog
-  (`tests/test_tool_catalog_snapshot.py` vs `tool_catalog.snapshot.json`). Any
-  change to a tool's name, description, or input schema fails CI with a diff for
-  human review. MCP packages are pinned to exact versions in `uv.lock`.
+- CI runs a snapshot test of the tool catalog (`tests/test_tool_catalog_snapshot.py`
+  vs `tool_catalog.snapshot.json`). Any change to a tool's name, description, or
+  input schema fails CI with a diff for human review. Deps pinned in `uv.lock`.
 
-### Prompt injection (via knowledge content)
-- **Defense:** tools return data, never instructions. Knowledge content is
-  returned as structured payloads (typed fields), and the audit log records what
-  was accessed. The server performs no autonomous outbound action in v1 — all
-  mutating/outbound tools (with their two-tier confirmation gates) are out of
-  scope until Phase 2, so there is no injectable action surface yet.
-
-### Auth bypass
-- **Defense:** fail-closed startup (see Auth). The dev bypass requires an
-  explicit env flag and is documented as dev-only; it is never the default.
+### Write blast radius
+- Writes are confined to the tenant root, restricted to text suffixes
+  (`.md/.txt/.json/.csv/.yaml`), and capped at `KAI_MAX_FILE_BYTES`.
 
 ## Layout
 
 ```
 src/kai_mcp_empresa/
-  config.py        # env settings (pydantic-settings), fail-closed validation
-  db.py            # asyncpg pool + pgvector registration
-  identity.py      # TenantContext + extraction from token claims / dev mode
-  auth.py          # JWTVerifier (Clerk) wiring
-  embeddings.py    # Embedder protocol + OpenAI + deterministic fake (tests)
-  server.py        # FastMCP instance + tool registration + run()
+  config.py        # env settings (pydantic-settings), fail-closed, case-sensitive
+  auth.py          # StaticTokenVerifier from the tokens file
+  identity.py      # CallerContext from token claims + tenant_root resolution
+  fs.py            # path-safe read/write/list/search scoped to a tenant root
+  server.py        # FastMCP instance + tool registration
   __main__.py      # entrypoint
-  tools/read.py    # kai_search, kai_fetch, kai_list_collections, kai_list_objects
-  tools/special.py # who_am_i, log_interaction
-tests/             # auth, tenant scoping, tool catalog snapshot
+  tools/files.py   # kai_read, kai_write, kai_list, kai_search, who_am_i
+scripts/
+  install_tenant.py  # provision a tenant: brain folder + tokens + identity
+  dump_catalog.py    # regenerate the tool-catalog snapshot
+tests/               # auth, path scoping, e2e roundtrip, catalog snapshot
 ```

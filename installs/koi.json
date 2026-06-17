@@ -1,0 +1,14 @@
+{
+  "tenant": "koi",
+  "name": "Koi Group",
+  "users": [
+    {"user": "mat",   "role": "founder",  "profile": "Mat (Matías Diez). Producto + técnico del squad Kai. Arma el MCP, el ERP y el proceso AI-first con Manu."},
+    {"user": "mili",  "role": "co-ceo",   "profile": "Mili. Co-CEO de Koi. Pidió el ERP de finanzas. Hoy maneja todo en Excel; no cambiarle el input. Quiere ver que el proyecto se mueve, 1-2 intercambios semanales."},
+    {"user": "pablo", "role": "co-ceo",   "profile": "Pablo. Co-CEO de Koi. Visión. No es target técnico de Kai."},
+    {"user": "mitch", "role": "partner",  "profile": "Mitch. Partner technical-heavy de Koi. Infra."},
+    {"user": "manu",  "role": "cfo",      "profile": "Manu. Finanzas de Koi. Su criterio es el que codifica el agente CFO del ERP."},
+    {"user": "taio",  "role": "pm",       "profile": "Rosario 'Taio' Fagalde. Cara de producto/demos, PPTs. PMO de proyectos vendidos."},
+    {"user": "chelo", "role": "metodo",   "profile": "Marcelo 'Chelo' Rolando. Metodología 4C. Arquitecto de negocio con IA. Da contenido al Gantt y al relevamiento."},
+    {"user": "gas",   "role": "comercial","profile": "Gastón 'Gas' Gene. Comercial + sponsor. Tomó Kai de lo estratégico para vender más."}
+  ]
+}

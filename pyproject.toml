@@ -1,17 +1,13 @@
 [project]
 name = "kai-mcp-empresa"
 version = "0.1.0"
-description = "Kai Layer 2 — per-tenant company MCP server (knowledge base + identity + audit over the company brain)"
+description = "Kai Layer 2 — per-tenant company MCP server (read/write over a company brain of markdown files)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=3.2,<4",
-    "asyncpg>=0.30",
-    "pgvector>=0.3.6",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
-    "openai>=1.30",
-    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]

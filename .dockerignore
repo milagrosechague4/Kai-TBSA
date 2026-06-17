@@ -1,0 +1,17 @@
+# Secrets + tenant data — NEVER bake into the image (they live in env/volume).
+tokens.json
+data/
+.env
+.env.*
+
+# Local cruft.
+.venv/
+pgdata/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.git/
+.github/
+.DS_Store
+tests/

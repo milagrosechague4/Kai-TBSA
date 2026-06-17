@@ -1,0 +1,11 @@
+# Railway deploy config. The persistent volume (the company brain) is created in
+# the Railway dashboard and mounted at /data — see "Deploy to Railway" in README.
+[build]
+builder = "dockerfile"
+
+[deploy]
+# The MCP serves Streamable HTTP at /mcp; /healthz is the liveness probe.
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

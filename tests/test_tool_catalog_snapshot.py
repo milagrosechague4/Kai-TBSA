@@ -35,14 +35,13 @@ async def test_tool_catalog_matches_snapshot():
     )
 
 
-async def test_catalog_has_six_tools_with_kai_prefix_or_special():
+async def test_catalog_has_expected_tools():
     live = await _live_catalog()
     names = {t["name"] for t in live}
     assert names == {
+        "kai_read",
+        "kai_write",
+        "kai_list",
         "kai_search",
-        "kai_fetch",
-        "kai_list_collections",
-        "kai_list_objects",
         "who_am_i",
-        "log_interaction",
     }

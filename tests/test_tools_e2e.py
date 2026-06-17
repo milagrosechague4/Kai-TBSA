@@ -1,0 +1,97 @@
+"""End-to-end through the FastMCP Client: the tools read/write the tenant brain."""
+
+from __future__ import annotations
+
+from conftest import make_settings
+from fastmcp import Client
+
+from kai_mcp_empresa.server import build_server
+
+
+async def test_write_list_read_search_who_am_i(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "kai_write",
+            {"path": "todos.md", "content": "- [ ] cargar la llamada — @mat\n"},
+        )
+        await client.call_tool(
+            "kai_write",
+            {
+                "path": "reuniones/2026-06-17.md",
+                "content": "# Arranque MCP\nMili pidió el ERP.\n",
+            },
+        )
+
+        listing = (await client.call_tool("kai_list", {"folder": "."})).data
+        names = {e["name"] for e in listing["entries"]}
+        assert {"todos.md", "reuniones"} <= names
+
+        read = (await client.call_tool("kai_read", {"path": "todos.md"})).data
+        assert "cargar la llamada" in read["content"]
+
+        hits = (await client.call_tool("kai_search", {"query": "ERP"})).data
+        assert any(h["path"] == "reuniones/2026-06-17.md" for h in hits)
+
+        me = (await client.call_tool("who_am_i", {})).data
+        assert me["tenant"] == "testco"
+        assert me["user"] == "tester"
+
+    # The files really landed under the tenant folder.
+    assert (tmp_path / "testco" / "todos.md").exists()
+
+
+async def test_append_mode_via_client(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool("kai_write", {"path": "log.md", "content": "uno\n"})
+        await client.call_tool(
+            "kai_write", {"path": "log.md", "content": "dos\n", "mode": "append"}
+        )
+        read = (await client.call_tool("kai_read", {"path": "log.md"})).data
+        assert read["content"] == "uno\ndos\n"
+
+
+async def test_who_am_i_includes_identity_profile(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "kai_write",
+            {"path": "_identity/tester.md", "content": "Rol: QA. Reporta a nadie.\n"},
+        )
+        me = (await client.call_tool("who_am_i", {})).data
+        assert me["profile"] is not None
+        assert "QA" in me["profile"]
+
+
+async def test_read_missing_file_is_error(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "kai_read", {"path": "nope.md"}, raise_on_error=False
+        )
+        assert result.is_error
+
+
+def test_healthz_route_is_registered(tmp_path):
+    # The platform healthcheck (Railway) hits /healthz; /mcp does not 200 on GET.
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    paths = {getattr(r, "path", None) for r in mcp.http_app().routes}
+    assert "/healthz" in paths
+    assert "/mcp" in paths
+
+
+async def test_traversal_blocked_via_client(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "kai_read", {"path": "../../etc/passwd"}, raise_on_error=False
+        )
+        assert result.is_error
