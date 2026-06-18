@@ -68,9 +68,23 @@ uv run ruff check .
 
 ## Connecting from Claude / ChatGPT
 
-In Claude: **Settings → Connectors → Add custom connector**, paste the server URL
-(`https://<host>/mcp`) and the bearer token. Same idea in ChatGPT's custom
-connectors. Each squad member uses **their own** token from `tokens.json`.
+Claude.ai / ChatGPT **web** custom connectors only do OAuth (there's no header
+field), so each person connects with a **personal URL that carries their token in
+the path**:
+
+```
+https://<host>/c/<token>/mcp
+```
+
+In Claude: **Settings → Connectors → Add custom connector** → paste that URL →
+leave the OAuth fields empty → **Add**. No separate token, no login. A pure-ASGI
+middleware (`url_auth.py`) moves the token from the path into an
+`Authorization: Bearer` header, so the static whitelist verifies it as usual —
+no OAuth, no DB. Generate the per-person URLs from `tokens.json`.
+
+Header-capable clients (Claude Desktop config, our own scripts) can still use the
+plain `https://<host>/mcp` endpoint with an `Authorization: Bearer <token>` header.
+Each squad member uses **their own** token from `tokens.json`.
 
 To expose a locally-running server quickly (Mat's laptop must stay on):
 

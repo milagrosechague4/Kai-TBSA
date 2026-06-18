@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conectar al cerebro de Koi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tinta:#15191E; --tinta-suave:#4A5159; --fondo:#FAFAF7; --superficie:#FFFFFF;
+    --cimiento:#1F3A5F; --senal:#C2A24E; --linea:#E4E2DB; --ok:#2E7D5B; --alerta:#B4502A;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{
+    font-family:var(--sans); color:var(--tinta); background:var(--fondo);
+    line-height:1.55; font-size:15px; padding:48px 20px;
+  }
+  .page{max-width:780px;margin:0 auto;background:var(--superficie);
+    border:1px solid var(--linea);border-radius:14px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(21,25,30,.04),0 12px 40px rgba(21,25,30,.06)}
+  .pad{padding:40px 48px}
+
+  /* Header */
+  header{border-bottom:1px solid var(--linea);background:linear-gradient(180deg,#fff, #fbfbf8)}
+  .brand{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--cimiento)}
+  .brand .dot{width:10px;height:10px;border-radius:2px;background:var(--cimiento);
+    box-shadow:3px 3px 0 var(--senal)}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:14px 0 6px;line-height:1.15}
+  .lead{font-size:15.5px;color:var(--tinta-suave);max-width:60ch}
+
+  /* Sections */
+  section{border-top:1px solid var(--linea)}
+  .eyebrow{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:700;
+    letter-spacing:.13em;text-transform:uppercase;color:var(--cimiento);margin-bottom:18px}
+  .eyebrow svg{width:16px;height:16px;flex:none}
+  h2{font-size:19px;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}
+
+  /* Connection card */
+  .conn{background:var(--cimiento);border-radius:10px;padding:22px 24px;color:#EAF0F7}
+  .conn .row{display:flex;flex-direction:column;gap:3px;padding:10px 0}
+  .conn .row + .row{border-top:1px solid rgba(255,255,255,.12)}
+  .conn .k{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#9DB4CE}
+  .conn .v{font-family:var(--mono);font-size:14.5px;color:#fff;word-break:break-all}
+  .conn .v.token{color:var(--senal)}
+  .hint{font-size:13px;color:var(--tinta-suave);margin-top:14px}
+  .hint b{color:var(--tinta);font-weight:600}
+
+  /* Steps */
+  .clients{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .client{border:1px solid var(--linea);border-radius:10px;padding:20px 22px;background:#fff}
+  .client h3{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .client h3 svg{width:18px;height:18px}
+  ol.steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:11px}
+  ol.steps li{counter-increment:s;position:relative;padding-left:30px;font-size:13.5px;color:var(--tinta-suave)}
+  ol.steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:20px;height:20px;
+    border-radius:50%;background:var(--fondo);border:1px solid var(--linea);
+    font-family:var(--mono);font-size:11px;font-weight:500;color:var(--cimiento);
+    display:flex;align-items:center;justify-content:center}
+  ol.steps li b{color:var(--tinta);font-weight:600}
+  code{font-family:var(--mono);font-size:.88em;background:var(--fondo);border:1px solid var(--linea);
+    border-radius:4px;padding:1px 5px;color:var(--cimiento)}
+
+  /* Capabilities */
+  .caps{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px}
+  .cap{display:flex;gap:11px;align-items:flex-start}
+  .cap svg{width:17px;height:17px;flex:none;color:var(--cimiento);margin-top:2px}
+  .cap p{font-size:13.5px;color:var(--tinta-suave)}
+  .cap p b{color:var(--tinta);font-weight:600}
+  .cap em{font-style:normal;color:var(--cimiento);font-family:var(--mono);font-size:12.5px}
+
+  /* Security */
+  .note{display:flex;gap:13px;background:#FBF7EC;border:1px solid #EADFC2;border-radius:10px;padding:16px 18px}
+  .note svg{width:18px;height:18px;flex:none;color:var(--senal);margin-top:1px}
+  .note p{font-size:13.5px;color:var(--tinta-suave)}
+  .note p b{color:var(--tinta);font-weight:600}
+
+  footer{border-top:1px solid var(--linea);padding:20px 48px;display:flex;
+    justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+    font-size:12px;color:var(--tinta-suave);background:#fbfbf8}
+  footer .status{display:flex;align-items:center;gap:7px}
+  footer .status .live{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  footer code{font-size:11px}
+
+  @media (max-width:640px){
+    .pad{padding:30px 26px}.clients,.caps{grid-template-columns:1fr}
+    h1{font-size:25px}footer{padding:18px 26px}
+  }
+  @media print{
+    body{padding:0;background:#fff;font-size:12px}
+    .page{border:none;box-shadow:none;border-radius:0;max-width:none}
+    header,.conn{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    section,.client,.note{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="pad">
+    <div class="brand"><span class="dot"></span> Koi · Cerebro de empresa</div>
+    <h1>Conectar al cerebro de Koi</h1>
+    <p class="lead">El cerebro de Koi es una carpeta viva de notas (contexto, pendientes, reuniones, transcripciones). Conectándolo a tu IA podés <b style="color:var(--tinta)">leer y escribir en lenguaje natural</b>, desde Claude o ChatGPT. Toma 2 minutos.</p>
+  </header>
+
+  <section class="pad">
+    <div class="eyebrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Datos de conexión
+    </div>
+    <div class="conn">
+      <div class="row">
+        <span class="k">Tu URL personal</span>
+        <span class="v token">https://kai-mcp-empresa-production.up.railway.app/c/kai_koi_•••••••••/mcp  ← pedísela a Mat</span>
+      </div>
+    </div>
+    <p class="hint"><b>Una sola URL, nada más.</b> Tu acceso va <b>dentro</b> de la URL — no hay token ni login aparte. Cada persona del squad tiene la suya; identifica quién sos dentro del cerebro. Mat te la pasa por privado.</p>
+  </section>
+
+  <section class="pad">
+    <div class="eyebrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z" opacity=".0"/><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Conectar — elegí tu cliente
+    </div>
+    <div class="clients">
+      <div class="client">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="var(--cimiento)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg> Claude</h3>
+        <ol class="steps">
+          <li>Abrí <b>Settings → Connectors</b>.</li>
+          <li>Click en <b>Add custom connector</b>.</li>
+          <li>En <b>URL</b>, pegá tu <b>URL personal</b> entera (la de arriba).</li>
+          <li>Dejá los campos de <b>OAuth vacíos</b> — no hacen falta.</li>
+          <li>Click <b>Add</b> y listo. Ya podés pedirle cosas al cerebro.</li>
+        </ol>
+      </div>
+      <div class="client">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="var(--cimiento)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8" opacity="0"/><path d="M9 12l2 2 4-4"/></svg> ChatGPT</h3>
+        <ol class="steps">
+          <li>Entrá a <b>Settings → Connectors</b>.</li>
+          <li>Elegí <b>Create / Add custom connector</b>.</li>
+          <li>Pegá tu <b>URL personal</b> entera (la de arriba).</li>
+          <li>Auth <b>None / sin OAuth</b> — el acceso ya va en la URL.</li>
+          <li>Confirmá y empezá a usarlo.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad">
+    <div class="eyebrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+      Qué podés hacer (en lenguaje natural)
+    </div>
+    <div class="caps">
+      <div class="cap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <p><b>Leer.</b> <em>"Mostrame los todos pendientes"</em> · <em>"Resumime la última reunión"</em></p>
+      </div>
+      <div class="cap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        <p><b>Escribir.</b> <em>"Agregá un pendiente para Manu"</em> · <em>"Guardá esta nota en reuniones"</em></p>
+      </div>
+      <div class="cap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <p><b>Buscar.</b> <em>"Buscá todo lo que diga 'ERP'"</em> · <em>"¿Dónde se habló del pricing?"</em></p>
+      </div>
+      <div class="cap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <p><b>Ubicarte.</b> <em>"¿Quién soy en este cerebro?"</em> — el cerebro sabe tu rol y contexto.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad">
+    <div class="note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <p><b>Seguridad.</b> Tu URL lleva tu acceso adentro: tratala como una contraseña, no la compartas ni la pegues en chats públicos. Solo lee y escribe el cerebro de Koi (nada más). Si se filtra, avisá a Mat y se revoca al toque.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span class="status"><span class="live"></span> Servicio activo · estado en <code>/healthz</code></span>
+    <span>¿Algo no conecta? Escribile a <b style="color:var(--tinta)">Mat</b>.</span>
+  </footer>
+
+</div>
+</body>
+</html>
