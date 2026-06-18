@@ -17,15 +17,18 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         return ctx, tenant_root(settings, ctx)
 
     @mcp.tool
-    async def kai_read(path: str) -> dict:
-        """Read a single file from the company brain.
+    async def kai_read(path: str, offset: int = 0, limit: int = 0) -> dict:
+        """Read a file from the company brain — whole, or a window of it.
 
         `path` is relative to the company root (e.g. "todos.md",
-        "reuniones/2026-06-17.md"). Returns the file's text content. Use kai_list
-        to discover paths and kai_search to find files by content.
+        "reuniones/2026-06-17.md"). For long files (transcripts, ledgers) pass
+        `offset` (1-based start line) and `limit` (max lines) to page through
+        without loading everything; the result includes `total_lines` and the
+        `start_line`/`end_line` returned. Use kai_list to discover paths and
+        kai_search to find files by content.
         """
         _, root = _root()
-        return fs.read_file(settings, root, path)
+        return fs.read_file(settings, root, path, offset, limit)
 
     @mcp.tool
     async def kai_write(path: str, content: str, mode: str = "overwrite") -> dict:
@@ -38,6 +41,22 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         """
         _, root = _root()
         return fs.write_file(settings, root, path, content, mode)
+
+    @mcp.tool
+    async def kai_edit(
+        path: str, old_string: str, new_string: str, replace_all: bool = False
+    ) -> dict:
+        """Make a targeted edit to an existing file — replace exact text in place.
+
+        Prefer this over kai_write for changing part of a file: only the text
+        matching `old_string` changes, so editing one row of a shared file (a line
+        in todos.md or loops-abiertos.md) never rewrites or clobbers the rest.
+        `old_string` must match exactly (whitespace included) and be unique — add
+        surrounding context if it isn't, or set `replace_all` to replace every
+        occurrence. Returns the path and number of replacements.
+        """
+        _, root = _root()
+        return fs.edit_file(settings, root, path, old_string, new_string, replace_all)
 
     @mcp.tool
     async def kai_delete(path: str) -> dict:

@@ -16,6 +16,34 @@
     }
   },
   {
+    "name": "kai_edit",
+    "description": "Make a targeted edit to an existing file — replace exact text in place.\n\nPrefer this over kai_write for changing part of a file: only the text\nmatching `old_string` changes, so editing one row of a shared file (a line\nin todos.md or loops-abiertos.md) never rewrites or clobbers the rest.\n`old_string` must match exactly (whitespace included) and be unique — add\nsurrounding context if it isn't, or set `replace_all` to replace every\noccurrence. Returns the path and number of replacements.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "old_string": {
+          "type": "string"
+        },
+        "new_string": {
+          "type": "string"
+        },
+        "replace_all": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "old_string",
+        "new_string"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_list",
     "description": "List files and subfolders inside a folder of the company brain.\n\n`folder` is relative to the company root (default = the root itself).\nReturns each entry's name, path, type (file/dir) and size. Walk into\nsubfolders by passing their path back in.",
     "inputSchema": {
@@ -31,12 +59,20 @@
   },
   {
     "name": "kai_read",
-    "description": "Read a single file from the company brain.\n\n`path` is relative to the company root (e.g. \"todos.md\",\n\"reuniones/2026-06-17.md\"). Returns the file's text content. Use kai_list\nto discover paths and kai_search to find files by content.",
+    "description": "Read a file from the company brain — whole, or a window of it.\n\n`path` is relative to the company root (e.g. \"todos.md\",\n\"reuniones/2026-06-17.md\"). For long files (transcripts, ledgers) pass\n`offset` (1-based start line) and `limit` (max lines) to page through\nwithout loading everything; the result includes `total_lines` and the\n`start_line`/`end_line` returned. Use kai_list to discover paths and\nkai_search to find files by content.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "path": {
           "type": "string"
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer"
+        },
+        "limit": {
+          "default": 0,
+          "type": "integer"
         }
       },
       "required": [

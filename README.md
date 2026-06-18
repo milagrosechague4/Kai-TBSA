@@ -28,8 +28,10 @@ token and is **never** a tool argument.
 
 | Tool | What |
 |---|---|
-| `kai_read(path)` | Read one file (markdown/text) from the company brain |
+| `kai_read(path, offset, limit)` | Read a file — whole, or a line window (`offset`/`limit`) for long files |
 | `kai_write(path, content, mode)` | Create/update a file; `mode` = `overwrite` or `append` |
+| `kai_edit(path, old_string, new_string, replace_all)` | Replace exact text in place — targeted edit, doesn't rewrite the rest of the file |
+| `kai_delete(path)` | Delete a file (or an empty folder); non-empty folders are refused |
 | `kai_list(folder)` | List files and subfolders inside a folder |
 | `kai_search(query, limit)` | Case-insensitive substring search across all text files |
 | `who_am_i()` | Caller's tenant, user, role + their `_identity/<user>.md` profile |
@@ -163,7 +165,7 @@ src/kai_mcp_empresa/
   fs.py            # path-safe read/write/list/search scoped to a tenant root
   server.py        # FastMCP instance + tool registration
   __main__.py      # entrypoint
-  tools/files.py   # kai_read, kai_write, kai_list, kai_search, who_am_i
+  tools/files.py   # kai_read, kai_write, kai_edit, kai_delete, kai_list, kai_search, who_am_i
 scripts/
   install_tenant.py  # provision a tenant: brain folder + tokens + identity
   dump_catalog.py    # regenerate the tool-catalog snapshot

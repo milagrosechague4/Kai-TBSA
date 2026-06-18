@@ -68,6 +68,49 @@ async def test_who_am_i_includes_identity_profile(tmp_path):
         assert "QA" in me["profile"]
 
 
+async def test_edit_targets_one_row_via_client(tmp_path):
+    # The squad case: closing one loop must not rewrite the rest of the board.
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "kai_write",
+            {
+                "path": "loops-abiertos.md",
+                "content": "- [ ] ERP devengado\n- [ ] conectar squad\n- [ ] reu Manu\n",
+            },
+        )
+        res = (
+            await client.call_tool(
+                "kai_edit",
+                {
+                    "path": "loops-abiertos.md",
+                    "old_string": "- [ ] conectar squad",
+                    "new_string": "- [x] conectar squad",
+                },
+            )
+        ).data
+        assert res["replacements"] == 1
+        read = (await client.call_tool("kai_read", {"path": "loops-abiertos.md"})).data
+        assert read["content"] == (
+            "- [ ] ERP devengado\n- [x] conectar squad\n- [ ] reu Manu\n"
+        )
+
+
+async def test_read_window_via_client(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool(
+            "kai_write", {"path": "t.md", "content": "a\nb\nc\nd\n"}
+        )
+        out = (
+            await client.call_tool("kai_read", {"path": "t.md", "offset": 2, "limit": 2})
+        ).data
+        assert out["content"] == "b\nc\n"
+        assert out["total_lines"] == 4 and out["truncated"] is True
+
+
 async def test_read_missing_file_is_error(tmp_path):
     settings = make_settings(data_root=tmp_path)
     mcp, _ = build_server(settings)
