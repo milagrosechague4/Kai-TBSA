@@ -103,6 +103,29 @@ def write_file(
     }
 
 
+def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
+    """Delete a single file, or an empty folder. Goes through the same path gate.
+
+    Non-empty folders are refused (no recursive delete — delete the files first).
+    Irreversible.
+    """
+    path = resolve_within(root, relpath)
+    if path == root:
+        raise PathError("refusing to delete the company root")
+    if not path.exists():
+        raise PathError(f"path not found: {relpath!r}")
+    if path.is_dir():
+        try:
+            path.rmdir()  # succeeds only if empty
+        except OSError as exc:
+            raise PathError(
+                f"{relpath!r} is a non-empty folder; delete its files first"
+            ) from exc
+        return {"path": str(path.relative_to(root)), "deleted": True, "type": "dir"}
+    path.unlink()
+    return {"path": str(path.relative_to(root)), "deleted": True, "type": "file"}
+
+
 def list_tree(settings: Settings, root: Path, folder: str = ".") -> dict:
     base = resolve_within(root, folder)
     if not base.exists():

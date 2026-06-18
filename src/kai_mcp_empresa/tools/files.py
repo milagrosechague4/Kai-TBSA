@@ -40,6 +40,18 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         return fs.write_file(settings, root, path, content, mode)
 
     @mcp.tool
+    async def kai_delete(path: str) -> dict:
+        """Delete a file (or an empty folder) from the company brain.
+
+        `path` is relative to the company root (e.g. "old-note.md",
+        "drafts/stale.md"). Removes one file; an empty folder is removed too.
+        Non-empty folders are refused — delete their files first. This is
+        irreversible, so confirm the path with kai_list before calling.
+        """
+        _, root = _root()
+        return fs.delete_file(settings, root, path)
+
+    @mcp.tool
     async def kai_list(folder: str = ".") -> dict:
         """List files and subfolders inside a folder of the company brain.
 

@@ -41,6 +41,7 @@ async def test_catalog_has_expected_tools():
     assert names == {
         "kai_read",
         "kai_write",
+        "kai_delete",
         "kai_list",
         "kai_search",
         "who_am_i",

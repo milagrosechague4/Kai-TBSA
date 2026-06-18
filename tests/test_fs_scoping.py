@@ -97,6 +97,49 @@ def test_size_limit_enforced(tmp_path):
         fs.write_file(settings, root, "big.md", "x" * 11)
 
 
+def test_delete_file_removes_it(tmp_path):
+    settings = make_settings()
+    root = _root(tmp_path)
+    fs.write_file(settings, root, "drafts/stale.md", "viejo\n")
+    res = fs.delete_file(settings, root, "drafts/stale.md")
+    assert res == {"path": "drafts/stale.md", "deleted": True, "type": "file"}
+    with pytest.raises(PathError):
+        fs.read_file(settings, root, "drafts/stale.md")
+
+
+def test_delete_empty_folder_ok_nonempty_refused(tmp_path):
+    settings = make_settings()
+    root = _root(tmp_path)
+    fs.write_file(settings, root, "box/keep.md", "x\n")
+    # non-empty folder is refused
+    with pytest.raises(PathError):
+        fs.delete_file(settings, root, "box")
+    # after removing the file, the now-empty folder can go
+    fs.delete_file(settings, root, "box/keep.md")
+    assert fs.delete_file(settings, root, "box")["type"] == "dir"
+
+
+def test_delete_missing_path_errors(tmp_path):
+    settings = make_settings()
+    root = _root(tmp_path)
+    with pytest.raises(PathError):
+        fs.delete_file(settings, root, "nope.md")
+
+
+def test_delete_refuses_root(tmp_path):
+    settings = make_settings()
+    root = _root(tmp_path)
+    with pytest.raises(PathError):
+        fs.delete_file(settings, root, ".")
+
+
+def test_delete_rejects_traversal(tmp_path):
+    settings = make_settings()
+    root = _root(tmp_path)
+    with pytest.raises(PathError):
+        fs.delete_file(settings, root, "../outside.md")
+
+
 def test_list_and_search(tmp_path):
     settings = make_settings()
     root = _root(tmp_path)

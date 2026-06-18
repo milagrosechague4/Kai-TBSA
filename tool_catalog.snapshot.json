@@ -1,5 +1,21 @@
 [
   {
+    "name": "kai_delete",
+    "description": "Delete a file (or an empty folder) from the company brain.\n\n`path` is relative to the company root (e.g. \"old-note.md\",\n\"drafts/stale.md\"). Removes one file; an empty folder is removed too.\nNon-empty folders are refused — delete their files first. This is\nirreversible, so confirm the path with kai_list before calling.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_list",
     "description": "List files and subfolders inside a folder of the company brain.\n\n`folder` is relative to the company root (default = the root itself).\nReturns each entry's name, path, type (file/dir) and size. Walk into\nsubfolders by passing their path back in.",
     "inputSchema": {
