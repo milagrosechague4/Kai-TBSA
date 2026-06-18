@@ -1,0 +1,10 @@
+{
+  "tenant": "kai-platform",
+  "name": "Kai Platform — creation library (read-mostly, product moat)",
+  "users": [
+    {"user": "mat", "role": "founder", "profile": "Dueño de Kai. Mantiene la creation library."},
+    {"user": "taio", "role": "squad", "profile": "Squad Kai (PM). Lee la creation library para construir."},
+    {"user": "chelo", "role": "squad", "profile": "Squad Kai (método). Lee la creation library para construir."},
+    {"user": "gas", "role": "squad", "profile": "Squad Kai (comercial). Lee la creation library para construir."}
+  ]
+}
