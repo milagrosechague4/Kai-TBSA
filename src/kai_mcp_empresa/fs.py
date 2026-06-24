@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fastmcp.exceptions import ToolError
 
+from . import git
 from .config import Settings
 
 
@@ -76,6 +77,18 @@ def _atomic_write_text(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
+
+
+def _maybe_commit(
+    settings: Settings, root: Path, relpath: str, commit: "git.CommitContext | None"
+) -> None:
+    """Record a mutation in the tenant's git history, if enabled. Best-effort by
+    contract of the caller: the file write already succeeded, so a commit failure
+    surfaces as a GitError but never loses content."""
+    if commit is None or not settings.git_enabled:
+        return
+    git.ensure_repo(root, timeout=settings.git_timeout_s)
+    git.commit_change(root, relpath, commit, timeout=settings.git_timeout_s)
 
 
 def sweep_stale_temps(data_root: Path, max_age_seconds: float = 3600) -> int:
@@ -147,7 +160,12 @@ def read_file(
 
 
 def write_file(
-    settings: Settings, root: Path, relpath: str, content: str, mode: str = "overwrite"
+    settings: Settings,
+    root: Path,
+    relpath: str,
+    content: str,
+    mode: str = "overwrite",
+    commit: "git.CommitContext | None" = None,
 ) -> dict:
     if mode not in ("overwrite", "append"):
         raise PathError(f"mode must be 'overwrite' or 'append', got {mode!r}")
@@ -174,8 +192,10 @@ def write_file(
     else:
         _atomic_write_text(path, content)
 
+    rel = str(path.relative_to(root))
+    _maybe_commit(settings, root, rel, commit)
     return {
-        "path": str(path.relative_to(root)),
+        "path": rel,
         "mode": mode,
         "created": created,
         "bytes": path.stat().st_size,
@@ -189,6 +209,7 @@ def edit_file(
     old_string: str,
     new_string: str,
     replace_all: bool = False,
+    commit: "git.CommitContext | None" = None,
 ) -> dict:
     """Replace an exact substring in an existing file, in place.
 
@@ -233,6 +254,7 @@ def edit_file(
         )
 
     _atomic_write_text(path, new_text)
+    _maybe_commit(settings, root, str(path.relative_to(root)), commit)
     return {
         "path": str(path.relative_to(root)),
         "replacements": count if replace_all else 1,
@@ -240,7 +262,12 @@ def edit_file(
     }
 
 
-def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
+def delete_file(
+    settings: Settings,
+    root: Path,
+    relpath: str,
+    commit: "git.CommitContext | None" = None,
+) -> dict:
     """Delete a single file, or an empty folder. Goes through the same path gate.
 
     Non-empty folders are refused (no recursive delete — delete the files first).
@@ -251,6 +278,7 @@ def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
         raise PathError("refusing to delete the company root")
     if not path.exists():
         raise PathError(f"path not found: {relpath!r}")
+    rel = str(path.relative_to(root))
     if path.is_dir():
         try:
             path.rmdir()  # succeeds only if empty
@@ -258,9 +286,47 @@ def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
             raise PathError(
                 f"{relpath!r} is a non-empty folder; delete its files first"
             ) from exc
-        return {"path": str(path.relative_to(root)), "deleted": True, "type": "dir"}
+        return {"path": rel, "deleted": True, "type": "dir"}
     path.unlink()
-    return {"path": str(path.relative_to(root)), "deleted": True, "type": "file"}
+    _maybe_commit(settings, root, rel, commit)
+    return {"path": rel, "deleted": True, "type": "file"}
+
+
+def file_history(settings: Settings, root: Path, relpath: str, limit: int) -> list[dict]:
+    """Commit history for one file (newest first). Empty if git is off or no history."""
+    if not settings.git_enabled:
+        return []
+    path = resolve_within(root, relpath)  # validates the path; file need not exist
+    return git.history(root, str(path.relative_to(root)), limit, timeout=settings.git_timeout_s)
+
+
+def revert_file(
+    settings: Settings,
+    root: Path,
+    relpath: str,
+    commit_sha: str,
+    ctx: "git.CommitContext",
+) -> dict:
+    """Restore a file to its content at `commit_sha`, recorded as a new commit.
+
+    Never rewrites history: it reads the old blob, writes it atomically, and
+    commits on top. Errors if git is off or the file did not exist at that commit.
+    """
+    if not settings.git_enabled:
+        raise git.GitError("history/revert is disabled (KAI_GIT_ENABLED=false)")
+    path = resolve_within(root, relpath)
+    if path == root:
+        raise PathError(f"{relpath!r} is not a file path")
+    _check_suffix(settings, path)
+    rel = str(path.relative_to(root))
+    content = git.read_blob_at(root, rel, commit_sha, timeout=settings.git_timeout_s)
+    if len(content.encode("utf-8")) > settings.max_file_bytes:
+        raise PathError(
+            f"reverted content would exceed the {settings.max_file_bytes}-byte limit"
+        )
+    _atomic_write_text(path, content)
+    sha = git.commit_change(root, rel, ctx, timeout=settings.git_timeout_s)
+    return {"path": rel, "reverted_to": commit_sha, "sha": sha}
 
 
 def list_tree(settings: Settings, root: Path, folder: str = ".") -> dict:
@@ -286,19 +352,62 @@ def list_tree(settings: Settings, root: Path, folder: str = ".") -> dict:
     return {"folder": str(base.relative_to(root)) or ".", "entries": entries}
 
 
-def search(settings: Settings, root: Path, query: str, limit: int = 20) -> list[dict]:
-    """Case-insensitive substring search across the tenant's text files.
+# Scoring weights: a term in the title/frontmatter is worth far more than a body hit.
+_W_TITLE = 5
+_W_FILENAME = 3
+_W_BODY = 1
+_BODY_CAP = 10  # cap one file's body contribution so a huge file can't dominate
 
-    Returns one hit per matching file with the matched line numbers + snippets.
-    Plain grep, no embeddings — the brain is small and the win is transparency.
+
+def _frontmatter_text(text: str) -> str:
+    """Return the raw YAML frontmatter block (between leading --- fences), or "".
+
+    Shallow and forgiving: if there's no closing fence we just take the rest of
+    the file as frontmatter-ish text for matching. Never raises — search must not
+    fail on a malformed block.
     """
-    q = (query or "").strip().lower()
-    if not q:
+    if not text.startswith("---"):
+        return ""
+    rest = text[3:]
+    end = rest.find("\n---")
+    return rest if end == -1 else rest[:end]
+
+
+def _score_file(relpath: str, text: str, terms: list[str]) -> int:
+    """Sum the weighted score of `terms` in a file. 0 if any term is absent."""
+    low = text.lower()
+    if not all(t in low for t in terms):
+        return 0
+    fm = _frontmatter_text(text).lower()
+    name = relpath.lower()
+    score = 0
+    for t in terms:
+        if t in fm:
+            score += _W_TITLE
+        if t in name:
+            score += _W_FILENAME
+        # Body = everything outside the frontmatter, so a frontmatter hit counts
+        # once (as a title hit) and is not double-counted as a body hit too.
+        body_count = low.count(t) - fm.count(t)
+        score += min(_BODY_CAP, body_count) * _W_BODY
+    return score
+
+
+def search(settings: Settings, root: Path, query: str, limit: int = 20) -> list[dict]:
+    """Scored, frontmatter-aware substring search across the tenant's text files.
+
+    The query is split into terms; a file matches only if EVERY term appears
+    (case-insensitive). Each file gets a score — hits in the YAML frontmatter
+    (title/tags) and the filename weigh more than body hits — and results come
+    back sorted by score (desc), then path. Plain grep, no index: the brain is
+    small and the win is transparency. Returns one entry per matching file with
+    its score and up to 5 matched lines.
+    """
+    terms = [t for t in (query or "").lower().split() if t]
+    if not terms:
         return []
-    hits: list[dict] = []
+    scored: list[tuple[int, dict]] = []
     for path in sorted(root.rglob("*")):
-        if len(hits) >= limit:
-            break
         if not path.is_file() or path.suffix.lower() not in settings.allowed_suffixes:
             continue
         if any(part.startswith(".") for part in path.relative_to(root).parts):
@@ -307,17 +416,17 @@ def search(settings: Settings, root: Path, query: str, limit: int = 20) -> list[
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        rel = str(path.relative_to(root))
+        score = _score_file(rel, text, terms)
+        if score == 0:
+            continue
         matches = []
         for n, line in enumerate(text.splitlines(), start=1):
-            if q in line.lower():
+            low_line = line.lower()
+            if any(t in low_line for t in terms):
                 matches.append({"line": n, "text": line.strip()[:200]})
                 if len(matches) >= 5:
                     break
-        if matches:
-            hits.append(
-                {
-                    "path": str(path.relative_to(root)),
-                    "matches": matches,
-                }
-            )
-    return hits
+        scored.append((score, {"path": rel, "score": score, "matches": matches}))
+    scored.sort(key=lambda s: (-s[0], s[1]["path"]))
+    return [hit for _, hit in scored[:limit]]

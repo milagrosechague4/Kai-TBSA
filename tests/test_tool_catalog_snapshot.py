@@ -45,5 +45,7 @@ async def test_catalog_has_expected_tools():
         "kai_delete",
         "kai_list",
         "kai_search",
+        "kai_history",
+        "kai_revert",
         "who_am_i",
     }

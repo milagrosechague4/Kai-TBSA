@@ -4,11 +4,15 @@ that tenant's folder — the tenant is never an argument."""
 
 from __future__ import annotations
 
+import asyncio
+
 from fastmcp import FastMCP
 
 from .. import fs
 from ..config import Settings
+from ..git import CommitContext
 from ..identity import current_context, tenant_root
+from ..locks import tenant_lock
 
 
 def register_tools(mcp: FastMCP, settings: Settings) -> None:
@@ -39,8 +43,12 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         end — use for logs, to-do lists, meeting notes). Only text files are
         allowed (.md, .txt, .json, .csv, .yaml). Returns the written path + size.
         """
-        _, root = _root()
-        return fs.write_file(settings, root, path, content, mode)
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_write")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(
+                fs.write_file, settings, root, path, content, mode, cc
+            )
 
     @mcp.tool
     async def kai_edit(
@@ -55,8 +63,12 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         surrounding context if it isn't, or set `replace_all` to replace every
         occurrence. Returns the path and number of replacements.
         """
-        _, root = _root()
-        return fs.edit_file(settings, root, path, old_string, new_string, replace_all)
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_edit")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(
+                fs.edit_file, settings, root, path, old_string, new_string, replace_all, cc
+            )
 
     @mcp.tool
     async def kai_delete(path: str) -> dict:
@@ -67,8 +79,10 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         Non-empty folders are refused — delete their files first. This is
         irreversible, so confirm the path with kai_list before calling.
         """
-        _, root = _root()
-        return fs.delete_file(settings, root, path)
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_delete")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(fs.delete_file, settings, root, path, cc)
 
     @mcp.tool
     async def kai_list(folder: str = ".") -> dict:
@@ -92,6 +106,33 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         _, root = _root()
         limit = max(1, min(limit, 100))
         return fs.search(settings, root, query, limit)
+
+    @mcp.tool
+    async def kai_history(path: str, limit: int = 20) -> list[dict]:
+        """Show the change history of a file in the company brain.
+
+        Returns the commits that touched `path`, newest first — each with a short
+        `sha`, the `author` (the teammate who made the change), a relative and ISO
+        date, and the message. Use the `sha` with kai_revert to restore a previous
+        version. Empty if the file has no recorded history yet.
+        """
+        _, root = _root()
+        limit = max(1, min(limit, 100))
+        return fs.file_history(settings, root, path, limit)
+
+    @mcp.tool
+    async def kai_revert(path: str, commit: str) -> dict:
+        """Restore a file to how it was at a previous commit.
+
+        `commit` is a `sha` from kai_history. The file's content is rolled back to
+        that version and the rollback is saved as a NEW commit on top — history is
+        never rewritten, so every change (including this one) stays auditable.
+        Returns the path, the commit reverted to, and the new commit sha.
+        """
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_revert")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(fs.revert_file, settings, root, path, commit, cc)
 
     @mcp.tool
     async def who_am_i() -> dict:

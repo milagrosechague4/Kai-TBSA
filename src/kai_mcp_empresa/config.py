@@ -13,6 +13,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+HISTORY_DEFAULT_LIMIT = 20
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -59,6 +61,13 @@ class Settings(BaseSettings):
         ".yaml",
         ".yml",
     )
+
+    # History / audit (per-tenant git repo). Off → mutating tools skip git.
+    git_enabled: bool = Field(True, alias="KAI_GIT_ENABLED")
+    git_timeout_s: float = Field(10.0, alias="KAI_GIT_TIMEOUT_S")
+
+    # Observability: one JSON line per tool call to stdout (Railway captures it).
+    log_toolcalls: bool = Field(True, alias="KAI_LOG_TOOLCALLS")
 
     def validate_fail_closed(self) -> None:
         """Refuse to start in an unsafe configuration."""

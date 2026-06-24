@@ -9,6 +9,7 @@ from starlette.responses import JSONResponse
 from .auth import build_auth
 from .config import Settings, get_settings
 from .fs import sweep_stale_temps
+from .obs import ToolCallLogger
 from .tools.files import register_tools
 
 
@@ -18,6 +19,9 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
 
     mcp = FastMCP(name="kai-mcp-empresa", auth=build_auth(settings))
     register_tools(mcp, settings)
+
+    if settings.log_toolcalls:
+        mcp.add_middleware(ToolCallLogger(settings))
 
     # Reap any atomic-write temp files stranded by a previous hard crash.
     sweep_stale_temps(settings.data_root)
