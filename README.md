@@ -20,6 +20,7 @@ folder, or a persistent volume).
 - **Markdown files on disk** — one folder per tenant under `KAI_DATA_ROOT`
 - **Static bearer tokens** — a tokens file is the whitelist (who has a token is in)
 - **uv** — strict lockfile, exact pins. No DB, no embeddings.
+- Per-tenant git history via the system `git` (subprocess) — still no DB, no embeddings.
 
 ## Tools
 
@@ -33,7 +34,9 @@ token and is **never** a tool argument.
 | `kai_edit(path, old_string, new_string, replace_all)` | Replace exact text in place — targeted edit, doesn't rewrite the rest of the file |
 | `kai_delete(path)` | Delete a file (or an empty folder); non-empty folders are refused |
 | `kai_list(folder)` | List files and subfolders inside a folder |
-| `kai_search(query, limit)` | Case-insensitive substring search across all text files |
+| `kai_search(query, limit)` | Scored, frontmatter-aware substring search (terms AND-ed; title/tags/filename rank above body) — ordered by relevance |
+| `kai_history(path, limit)` | The commit history of a file — who changed it, when, with each `sha` |
+| `kai_revert(path, commit)` | Restore a file to a previous `commit`, recorded as a new commit (history is never rewritten) |
 | `who_am_i()` | Caller's tenant, user, role + their `_identity/<user>.md` profile |
 
 ## Quick start (local dev)
@@ -154,6 +157,26 @@ into tool output.
 ### Write blast radius
 - Writes are confined to the tenant root, restricted to text suffixes
   (`.md/.txt/.json/.csv/.yaml`), and capped at `KAI_MAX_FILE_BYTES`.
+
+## History & audit
+
+Each tenant's brain is its own **git repo** (`/data/<tenant>/.git`), initialized
+on first write. Every `kai_write`/`kai_edit`/`kai_delete`/`kai_revert` makes a
+commit **attributed to the caller** (`user <user@tenant.kai>`), so the company can
+see who changed what and when (`kai_history`) and restore any prior version
+(`kai_revert`, which records the rollback as a new commit — history is never
+rewritten). The brain stays a plain, exportable git repo — no lock-in. Disable
+with `KAI_GIT_ENABLED=false` (then `kai_history`/`kai_revert` are inert).
+
+**Concurrency:** mutating tools serialize per tenant with an in-process
+`asyncio.Lock` across the read-modify-write + commit, so two teammates editing the
+same brain never lose each other's change. This assumes a **single process** (one
+container) — the production invariant on Railway. Scaling to multiple workers would
+require filesystem-level locking (out of scope today).
+
+**Observability:** every tool call emits one JSON line to stdout
+(`tenant`, `user`, `tool`, `ok`, `ms`) — captured by Railway logs. Tokens and file
+content are never logged. Toggle with `KAI_LOG_TOOLCALLS`.
 
 ## Layout
 
