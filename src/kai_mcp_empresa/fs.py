@@ -262,7 +262,12 @@ def edit_file(
     }
 
 
-def delete_file(settings: Settings, root: Path, relpath: str, commit: "git.CommitContext | None" = None) -> dict:
+def delete_file(
+    settings: Settings,
+    root: Path,
+    relpath: str,
+    commit: "git.CommitContext | None" = None,
+) -> dict:
     """Delete a single file, or an empty folder. Goes through the same path gate.
 
     Non-empty folders are refused (no recursive delete — delete the files first).
