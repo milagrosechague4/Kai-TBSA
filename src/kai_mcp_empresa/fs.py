@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fastmcp.exceptions import ToolError
 
+from . import git
 from .config import Settings
 
 
@@ -76,6 +77,18 @@ def _atomic_write_text(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
+
+
+def _maybe_commit(
+    settings: Settings, root: Path, relpath: str, commit: "git.CommitContext | None"
+) -> None:
+    """Record a mutation in the tenant's git history, if enabled. Best-effort by
+    contract of the caller: the file write already succeeded, so a commit failure
+    surfaces as a GitError but never loses content."""
+    if commit is None or not settings.git_enabled:
+        return
+    git.ensure_repo(root, timeout=settings.git_timeout_s)
+    git.commit_change(root, relpath, commit, timeout=settings.git_timeout_s)
 
 
 def sweep_stale_temps(data_root: Path, max_age_seconds: float = 3600) -> int:
@@ -147,7 +160,12 @@ def read_file(
 
 
 def write_file(
-    settings: Settings, root: Path, relpath: str, content: str, mode: str = "overwrite"
+    settings: Settings,
+    root: Path,
+    relpath: str,
+    content: str,
+    mode: str = "overwrite",
+    commit: "git.CommitContext | None" = None,
 ) -> dict:
     if mode not in ("overwrite", "append"):
         raise PathError(f"mode must be 'overwrite' or 'append', got {mode!r}")
@@ -174,8 +192,10 @@ def write_file(
     else:
         _atomic_write_text(path, content)
 
+    rel = str(path.relative_to(root))
+    _maybe_commit(settings, root, rel, commit)
     return {
-        "path": str(path.relative_to(root)),
+        "path": rel,
         "mode": mode,
         "created": created,
         "bytes": path.stat().st_size,
@@ -189,6 +209,7 @@ def edit_file(
     old_string: str,
     new_string: str,
     replace_all: bool = False,
+    commit: "git.CommitContext | None" = None,
 ) -> dict:
     """Replace an exact substring in an existing file, in place.
 
@@ -233,6 +254,7 @@ def edit_file(
         )
 
     _atomic_write_text(path, new_text)
+    _maybe_commit(settings, root, str(path.relative_to(root)), commit)
     return {
         "path": str(path.relative_to(root)),
         "replacements": count if replace_all else 1,
@@ -240,7 +262,7 @@ def edit_file(
     }
 
 
-def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
+def delete_file(settings: Settings, root: Path, relpath: str, commit: "git.CommitContext | None" = None) -> dict:
     """Delete a single file, or an empty folder. Goes through the same path gate.
 
     Non-empty folders are refused (no recursive delete — delete the files first).
@@ -251,6 +273,7 @@ def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
         raise PathError("refusing to delete the company root")
     if not path.exists():
         raise PathError(f"path not found: {relpath!r}")
+    rel = str(path.relative_to(root))
     if path.is_dir():
         try:
             path.rmdir()  # succeeds only if empty
@@ -258,9 +281,10 @@ def delete_file(settings: Settings, root: Path, relpath: str) -> dict:
             raise PathError(
                 f"{relpath!r} is a non-empty folder; delete its files first"
             ) from exc
-        return {"path": str(path.relative_to(root)), "deleted": True, "type": "dir"}
+        return {"path": rel, "deleted": True, "type": "dir"}
     path.unlink()
-    return {"path": str(path.relative_to(root)), "deleted": True, "type": "file"}
+    _maybe_commit(settings, root, rel, commit)
+    return {"path": rel, "deleted": True, "type": "file"}
 
 
 def list_tree(settings: Settings, root: Path, folder: str = ".") -> dict:

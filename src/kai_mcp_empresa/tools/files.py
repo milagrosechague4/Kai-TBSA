@@ -4,11 +4,15 @@ that tenant's folder — the tenant is never an argument."""
 
 from __future__ import annotations
 
+import asyncio
+
 from fastmcp import FastMCP
 
 from .. import fs
 from ..config import Settings
+from ..git import CommitContext
 from ..identity import current_context, tenant_root
+from ..locks import tenant_lock
 
 
 def register_tools(mcp: FastMCP, settings: Settings) -> None:
@@ -39,8 +43,12 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         end — use for logs, to-do lists, meeting notes). Only text files are
         allowed (.md, .txt, .json, .csv, .yaml). Returns the written path + size.
         """
-        _, root = _root()
-        return fs.write_file(settings, root, path, content, mode)
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_write")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(
+                fs.write_file, settings, root, path, content, mode, cc
+            )
 
     @mcp.tool
     async def kai_edit(
@@ -55,8 +63,12 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         surrounding context if it isn't, or set `replace_all` to replace every
         occurrence. Returns the path and number of replacements.
         """
-        _, root = _root()
-        return fs.edit_file(settings, root, path, old_string, new_string, replace_all)
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_edit")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(
+                fs.edit_file, settings, root, path, old_string, new_string, replace_all, cc
+            )
 
     @mcp.tool
     async def kai_delete(path: str) -> dict:
@@ -67,8 +79,10 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         Non-empty folders are refused — delete their files first. This is
         irreversible, so confirm the path with kai_list before calling.
         """
-        _, root = _root()
-        return fs.delete_file(settings, root, path)
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_delete")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(fs.delete_file, settings, root, path, cc)
 
     @mcp.tool
     async def kai_list(folder: str = ".") -> dict:
