@@ -20,7 +20,7 @@ folder, or a persistent volume).
 - **Markdown files on disk** — one folder per tenant under `KAI_DATA_ROOT`
 - **Static bearer tokens** — a tokens file is the whitelist (who has a token is in)
 - **uv** — strict lockfile, exact pins. No DB, no embeddings.
-- Per-tenant git history via the system `git` (subprocess) — still no DB, no embeddings.
+- **Git** — per-tenant history via the system `git` (subprocess); still no DB, no embeddings.
 
 ## Tools
 
