@@ -159,6 +159,7 @@ async def test_history_and_revert_roundtrip(tmp_path):
             )
         ).data
         assert res["reverted_to"] == first_sha
+        assert res["sha"]  # the rollback is recorded as a real new commit
         read = (await client.call_tool("kai_read", {"path": "plan.md"})).data
         assert read["content"] == "v1\n"
         # Revert is a NEW commit on top — history grew, nothing was rewritten.

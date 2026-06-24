@@ -53,8 +53,10 @@ def _run(
     except subprocess.TimeoutExpired as exc:
         raise GitError(f"git timed out after {timeout}s") from exc
     if check and proc.returncode != 0:
+        # Name the subcommand, not a leading `-c key=val` pair, in the message.
+        subcmd = next((a for a in args if not a.startswith("-") and "=" not in a), args[0])
         # stderr can name relpaths but never the absolute root or a token.
-        raise GitError(f"git {args[0]} failed: {proc.stderr.strip()[:300]}")
+        raise GitError(f"git {subcmd} failed: {proc.stderr.strip()[:300]}")
     return proc
 
 

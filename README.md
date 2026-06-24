@@ -168,6 +168,11 @@ see who changed what and when (`kai_history`) and restore any prior version
 rewritten). The brain stays a plain, exportable git repo — no lock-in. Disable
 with `KAI_GIT_ENABLED=false` (then `kai_history`/`kai_revert` are inert).
 
+History starts at the first write *after* this feature lands: files that already
+existed in a brain before it was git-tracked show empty `kai_history` (and can't be
+reverted) until they're next written through a tool. No pre-git content is
+retroactively attributed.
+
 **Concurrency:** mutating tools serialize per tenant with an in-process
 `asyncio.Lock` across the read-modify-write + commit, so two teammates editing the
 same brain never lose each other's change. This assumes a **single process** (one
