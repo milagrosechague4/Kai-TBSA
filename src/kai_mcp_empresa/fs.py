@@ -386,7 +386,10 @@ def _score_file(relpath: str, text: str, terms: list[str]) -> int:
             score += _W_TITLE
         if t in name:
             score += _W_FILENAME
-        score += min(_BODY_CAP, low.count(t)) * _W_BODY
+        # Body = everything outside the frontmatter, so a frontmatter hit counts
+        # once (as a title hit) and is not double-counted as a body hit too.
+        body_count = low.count(t) - fm.count(t)
+        score += min(_BODY_CAP, body_count) * _W_BODY
     return score
 
 

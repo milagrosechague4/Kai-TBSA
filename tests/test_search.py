@@ -71,3 +71,15 @@ def test_empty_query_returns_empty(tmp_path):
     root = _root(tmp_path)
     (root / "a.md").write_text("x\n", encoding="utf-8")
     assert fs.search(settings, root, "   ", 20) == []
+
+
+def test_frontmatter_hit_not_double_counted_as_body(tmp_path):
+    # A term only in the frontmatter scores as a title hit (5), NOT title + body.
+    settings = make_settings()
+    root = _root(tmp_path)
+    (root / "doc.md").write_text(
+        "---\ntitle: Pricing\n---\nunrelated body\n", encoding="utf-8"
+    )
+    hits = fs.search(settings, root, "pricing", 20)
+    assert hits[0]["path"] == "doc.md"
+    assert hits[0]["score"] == 5  # _W_TITLE only — frontmatter not re-counted as body
