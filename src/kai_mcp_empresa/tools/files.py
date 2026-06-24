@@ -108,6 +108,33 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         return fs.search(settings, root, query, limit)
 
     @mcp.tool
+    async def kai_history(path: str, limit: int = 20) -> list[dict]:
+        """Show the change history of a file in the company brain.
+
+        Returns the commits that touched `path`, newest first — each with a short
+        `sha`, the `author` (the teammate who made the change), a relative and ISO
+        date, and the message. Use the `sha` with kai_revert to restore a previous
+        version. Empty if the file has no recorded history yet.
+        """
+        _, root = _root()
+        limit = max(1, min(limit, 100))
+        return fs.file_history(settings, root, path, limit)
+
+    @mcp.tool
+    async def kai_revert(path: str, commit: str) -> dict:
+        """Restore a file to how it was at a previous commit.
+
+        `commit` is a `sha` from kai_history. The file's content is rolled back to
+        that version and the rollback is saved as a NEW commit on top — history is
+        never rewritten, so every change (including this one) stays auditable.
+        Returns the path, the commit reverted to, and the new commit sha.
+        """
+        ctx, root = _root()
+        cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_revert")
+        async with tenant_lock(root):
+            return await asyncio.to_thread(fs.revert_file, settings, root, path, commit, cc)
+
+    @mcp.tool
     async def who_am_i() -> dict:
         """Return the caller's identity: which company (tenant), user, and role.
 

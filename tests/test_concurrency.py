@@ -10,6 +10,18 @@ from fastmcp import Client
 from kai_mcp_empresa.server import build_server
 
 
+async def test_each_mutation_makes_a_commit(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool("kai_write", {"path": "t.md", "content": "uno\n"})
+        await client.call_tool(
+            "kai_edit", {"path": "t.md", "old_string": "uno", "new_string": "dos"}
+        )
+        hist = (await client.call_tool("kai_history", {"path": "t.md"})).data
+        assert len(hist) == 2
+
+
 async def test_concurrent_edits_no_lost_update(tmp_path):
     settings = make_settings(data_root=tmp_path)
     mcp, _ = build_server(settings)

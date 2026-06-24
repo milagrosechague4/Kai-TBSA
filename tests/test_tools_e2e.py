@@ -138,3 +138,40 @@ async def test_traversal_blocked_via_client(tmp_path):
             "kai_read", {"path": "../../etc/passwd"}, raise_on_error=False
         )
         assert result.is_error
+
+
+async def test_history_and_revert_roundtrip(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool("kai_write", {"path": "plan.md", "content": "v1\n"})
+        await client.call_tool(
+            "kai_edit", {"path": "plan.md", "old_string": "v1", "new_string": "v2"}
+        )
+        hist = (await client.call_tool("kai_history", {"path": "plan.md"})).data
+        assert len(hist) == 2
+        assert hist[0]["author"] == "tester"  # newest first (the edit)
+
+        first_sha = hist[-1]["sha"]  # the original write
+        res = (
+            await client.call_tool(
+                "kai_revert", {"path": "plan.md", "commit": first_sha}
+            )
+        ).data
+        assert res["reverted_to"] == first_sha
+        read = (await client.call_tool("kai_read", {"path": "plan.md"})).data
+        assert read["content"] == "v1\n"
+        # Revert is a NEW commit on top — history grew, nothing was rewritten.
+        hist2 = (await client.call_tool("kai_history", {"path": "plan.md"})).data
+        assert len(hist2) == 3
+
+
+async def test_revert_unknown_commit_is_error(tmp_path):
+    settings = make_settings(data_root=tmp_path)
+    mcp, _ = build_server(settings)
+    async with Client(mcp) as client:
+        await client.call_tool("kai_write", {"path": "x.md", "content": "hi\n"})
+        result = await client.call_tool(
+            "kai_revert", {"path": "x.md", "commit": "deadbeef"}, raise_on_error=False
+        )
+        assert result.is_error

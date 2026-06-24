@@ -292,6 +292,43 @@ def delete_file(
     return {"path": rel, "deleted": True, "type": "file"}
 
 
+def file_history(settings: Settings, root: Path, relpath: str, limit: int) -> list[dict]:
+    """Commit history for one file (newest first). Empty if git is off or no history."""
+    if not settings.git_enabled:
+        return []
+    path = resolve_within(root, relpath)  # validates the path; file need not exist
+    return git.history(root, str(path.relative_to(root)), limit, timeout=settings.git_timeout_s)
+
+
+def revert_file(
+    settings: Settings,
+    root: Path,
+    relpath: str,
+    commit_sha: str,
+    ctx: "git.CommitContext",
+) -> dict:
+    """Restore a file to its content at `commit_sha`, recorded as a new commit.
+
+    Never rewrites history: it reads the old blob, writes it atomically, and
+    commits on top. Errors if git is off or the file did not exist at that commit.
+    """
+    if not settings.git_enabled:
+        raise git.GitError("history/revert is disabled (KAI_GIT_ENABLED=false)")
+    path = resolve_within(root, relpath)
+    if path == root:
+        raise PathError(f"{relpath!r} is not a file path")
+    _check_suffix(settings, path)
+    rel = str(path.relative_to(root))
+    content = git.read_blob_at(root, rel, commit_sha, timeout=settings.git_timeout_s)
+    if len(content.encode("utf-8")) > settings.max_file_bytes:
+        raise PathError(
+            f"reverted content would exceed the {settings.max_file_bytes}-byte limit"
+        )
+    _atomic_write_text(path, content)
+    sha = git.commit_change(root, rel, ctx, timeout=settings.git_timeout_s)
+    return {"path": rel, "reverted_to": commit_sha, "sha": sha}
+
+
 def list_tree(settings: Settings, root: Path, folder: str = ".") -> dict:
     base = resolve_within(root, folder)
     if not base.exists():

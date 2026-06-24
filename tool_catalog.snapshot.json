@@ -44,6 +44,26 @@
     }
   },
   {
+    "name": "kai_history",
+    "description": "Show the change history of a file in the company brain.\n\nReturns the commits that touched `path`, newest first — each with a short\n`sha`, the `author` (the teammate who made the change), a relative and ISO\ndate, and the message. Use the `sha` with kai_revert to restore a previous\nversion. Empty if the file has no recorded history yet.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "limit": {
+          "default": 20,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_list",
     "description": "List files and subfolders inside a folder of the company brain.\n\n`folder` is relative to the company root (default = the root itself).\nReturns each entry's name, path, type (file/dir) and size. Walk into\nsubfolders by passing their path back in.",
     "inputSchema": {
@@ -77,6 +97,26 @@
       },
       "required": [
         "path"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "kai_revert",
+    "description": "Restore a file to how it was at a previous commit.\n\n`commit` is a `sha` from kai_history. The file's content is rolled back to\nthat version and the rollback is saved as a NEW commit on top — history is\nnever rewritten, so every change (including this one) stays auditable.\nReturns the path, the commit reverted to, and the new commit sha.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "commit"
       ],
       "type": "object"
     }
