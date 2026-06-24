@@ -47,8 +47,9 @@ def log_call(
         "tool": tool,
         "ok": ok,
         "ms": ms,
-        "arg": arg,
     }
+    if arg:
+        payload["arg"] = arg
     if err:
         payload["err"] = err
     logger.info(json.dumps(payload, ensure_ascii=False))

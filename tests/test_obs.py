@@ -43,3 +43,12 @@ async def test_failed_tool_call_logs_error(tmp_path, caplog):
     read = next(p for p in payloads if p["tool"] == "kai_read")
     assert read["ok"] is False
     assert read["err"]
+
+
+async def test_logging_disabled_emits_nothing(tmp_path, caplog):
+    settings = make_settings(data_root=tmp_path, log_toolcalls=False)
+    mcp, _ = build_server(settings)
+    with caplog.at_level("INFO", logger="kai.toolcall"):
+        async with Client(mcp) as client:
+            await client.call_tool("kai_write", {"path": "a.md", "content": "hi\n"})
+    assert [r for r in caplog.records if r.name == "kai.toolcall"] == []
