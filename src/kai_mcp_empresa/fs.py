@@ -352,19 +352,59 @@ def list_tree(settings: Settings, root: Path, folder: str = ".") -> dict:
     return {"folder": str(base.relative_to(root)) or ".", "entries": entries}
 
 
-def search(settings: Settings, root: Path, query: str, limit: int = 20) -> list[dict]:
-    """Case-insensitive substring search across the tenant's text files.
+# Scoring weights: a term in the title/frontmatter is worth far more than a body hit.
+_W_TITLE = 5
+_W_FILENAME = 3
+_W_BODY = 1
+_BODY_CAP = 10  # cap one file's body contribution so a huge file can't dominate
 
-    Returns one hit per matching file with the matched line numbers + snippets.
-    Plain grep, no embeddings — the brain is small and the win is transparency.
+
+def _frontmatter_text(text: str) -> str:
+    """Return the raw YAML frontmatter block (between leading --- fences), or "".
+
+    Shallow and forgiving: if there's no closing fence we just take the rest of
+    the file as frontmatter-ish text for matching. Never raises — search must not
+    fail on a malformed block.
     """
-    q = (query or "").strip().lower()
-    if not q:
+    if not text.startswith("---"):
+        return ""
+    rest = text[3:]
+    end = rest.find("\n---")
+    return rest if end == -1 else rest[:end]
+
+
+def _score_file(relpath: str, text: str, terms: list[str]) -> int:
+    """Sum the weighted score of `terms` in a file. 0 if any term is absent."""
+    low = text.lower()
+    if not all(t in low for t in terms):
+        return 0
+    fm = _frontmatter_text(text).lower()
+    name = relpath.lower()
+    score = 0
+    for t in terms:
+        if t in fm:
+            score += _W_TITLE
+        if t in name:
+            score += _W_FILENAME
+        score += min(_BODY_CAP, low.count(t)) * _W_BODY
+    return score
+
+
+def search(settings: Settings, root: Path, query: str, limit: int = 20) -> list[dict]:
+    """Scored, frontmatter-aware substring search across the tenant's text files.
+
+    The query is split into terms; a file matches only if EVERY term appears
+    (case-insensitive). Each file gets a score — hits in the YAML frontmatter
+    (title/tags) and the filename weigh more than body hits — and results come
+    back sorted by score (desc), then path. Plain grep, no index: the brain is
+    small and the win is transparency. Returns one entry per matching file with
+    its score and up to 5 matched lines.
+    """
+    terms = [t for t in (query or "").lower().split() if t]
+    if not terms:
         return []
-    hits: list[dict] = []
+    scored: list[tuple[int, dict]] = []
     for path in sorted(root.rglob("*")):
-        if len(hits) >= limit:
-            break
         if not path.is_file() or path.suffix.lower() not in settings.allowed_suffixes:
             continue
         if any(part.startswith(".") for part in path.relative_to(root).parts):
@@ -373,17 +413,17 @@ def search(settings: Settings, root: Path, query: str, limit: int = 20) -> list[
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        rel = str(path.relative_to(root))
+        score = _score_file(rel, text, terms)
+        if score == 0:
+            continue
         matches = []
         for n, line in enumerate(text.splitlines(), start=1):
-            if q in line.lower():
+            low_line = line.lower()
+            if any(t in low_line for t in terms):
                 matches.append({"line": n, "text": line.strip()[:200]})
                 if len(matches) >= 5:
                     break
-        if matches:
-            hits.append(
-                {
-                    "path": str(path.relative_to(root)),
-                    "matches": matches,
-                }
-            )
-    return hits
+        scored.append((score, {"path": rel, "score": score, "matches": matches}))
+    scored.sort(key=lambda s: (-s[0], s[1]["path"]))
+    return [hit for _, hit in scored[:limit]]
