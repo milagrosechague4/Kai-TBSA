@@ -59,3 +59,46 @@ def build_auth(settings: Settings):
     from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
     return StaticTokenVerifier(tokens=_tokens_for(settings))
+
+
+def resolve_caller(settings: Settings, request):
+    """Verify the bearer token from an HTTP request and return caller context.
+
+    Used by REST endpoints which bypass FastMCP's auth middleware.
+    Returns (CallerContext, tenant_root_path, None) on success, or
+    (None, None, JSONResponse) on auth failure.
+
+    Also works with the TokenInPathMiddleware — if the middleware already moved
+    the token from the URL path into the Authorization header, this reads it there.
+    """
+    from starlette.responses import JSONResponse
+
+    from .identity import ForbiddenError, CallerContext, context_from_claims, tenant_root
+
+    if settings.auth_disabled:
+        ctx = CallerContext(
+            tenant=settings.dev_tenant,
+            user=settings.dev_user,
+            role="dev",
+        )
+        root = (settings.data_root / ctx.tenant).resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        return ctx, root, None
+
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.lower().startswith("bearer "):
+        return None, None, JSONResponse({"error": "missing bearer token"}, status_code=401)
+
+    token = auth_header[7:].strip()
+    tokens = _tokens_for(settings)
+
+    if token not in tokens:
+        return None, None, JSONResponse({"error": "invalid token"}, status_code=401)
+
+    try:
+        ctx = context_from_claims(tokens[token])
+    except ForbiddenError as exc:
+        return None, None, JSONResponse({"error": str(exc)}, status_code=403)
+
+    root = tenant_root(settings, ctx)
+    return ctx, root, None
