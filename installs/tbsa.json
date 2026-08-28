@@ -1,16 +1,24 @@
 {
-  "tenant": "tbsa",
-  "name": "TBSA",
-  "users": [
-    {
-      "user": "mila",
-      "role": "consultora",
-      "profile": "Mila. Consultora de Organización y Comunicación. Acceso completo al cerebro institucional. Diseña la arquitectura organizacional e implementa el sistema de información de TBSA. Trabaja de forma remota."
-    },
-    {
-      "user": "sebastian",
-      "role": "ceo",
-      "profile": "Sebastián Cantero. CEO y fundador del ecosistema TBSA. Interlocutor principal y tomador de decisiones. Visión estratégica sobre Distrito Energético, TBSA, TBSA LATAM y nueva empresa en Vaca Muerta."
-    }
-  ]
+    "tenant": "tbsa",
+    "name": "TBSA",
+    "users": [
+      {
+        "user": "mila",
+        "role": "consultora",
+        "profile": "Mila. Consultora de Organización y Comunicación. Acceso completo al cerebro institucional. Diseña la arquitectura organizacional e implementa el 
+  sistema de información de TBSA. Trabaja de forma remota."
+      },
+      {
+        "user": "sebastian",
+        "role": "ceo",
+        "profile": "Sebastián Cantero. CEO y fundador del ecosistema TBSA. Interlocutor principal y tomador de decisiones. Visión estratégica sobre Distrito Energético, 
+  TBSA, TBSA LATAM y nueva empresa en Vaca Muerta."
+      },
+      {
+        "user": "lu",
+        "role": "office_manager",
+        "profile": "Luciana Chiessa. Office Manager. Nexo operativo del equipo. Gestiona la coordinación interna, aprobación de contenido y comunicación directa con el
+  equipo y consultores."
+      }
+    ]
 }
