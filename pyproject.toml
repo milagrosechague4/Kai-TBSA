@@ -8,6 +8,8 @@ dependencies = [
     "fastmcp>=3.2,<4",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "google-api-python-client>=2.100",
+    "google-auth>=2.23",
 ]
 
 [project.optional-dependencies]
