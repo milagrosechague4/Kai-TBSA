@@ -135,6 +135,115 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
             return await asyncio.to_thread(fs.revert_file, settings, root, path, commit, cc)
 
     @mcp.tool
+    async def kai_sources(route_for: str = "", limit: int = 10) -> dict:
+        """Return the Source Directory entries the caller is authorized to access.
+
+        Reads `source-directory.md` from the tenant brain, filters by the
+        caller's role, and returns metadata to guide which files to kai_read.
+        Pass `route_for` with a topic or question to rank entries by relevance.
+        `limit` caps results (max 30). Blocked entries are listed separately so
+        the agent can cite the steward rather than inventing inaccessible content.
+        """
+        ctx, root = _root()
+        limit = max(1, min(limit, 30))
+
+        # Maps token role → Source Directory role name
+        _TOKEN_TO_SD: dict[str, str] = {
+            "ceo": "fundador",
+            "consultora": "directora_operativa",
+            "office_manager": "coordinadora",
+            "gerente_proyectos": "gerente_proyectos",
+            "dev": "*",
+        }
+        sd_role = _TOKEN_TO_SD.get(ctx.role or "", "unknown")
+
+        try:
+            raw = fs.read_file(settings, root, "source-directory.md")["content"]
+        except fs.PathError:
+            return {"error": "source-directory.md not found in brain", "sources": []}
+
+        import re as _re
+
+        sources = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line.startswith("|"):
+                continue
+            cells = [c.strip() for c in line.split("|")[1:-1]]
+            if any(c.startswith("-") for c in cells):
+                continue
+            if cells and cells[0].upper() == "ID":
+                continue
+            if len(cells) < 7:
+                continue
+
+            src_id = cells[0].strip("`")
+            name = cells[1]
+            domain = cells[2]
+            owner = cells[3]
+            steward = cells[4]
+            access_raw = cells[5]
+            status = cells[6]
+            link_cell = cells[7] if len(cells) >= 8 else None
+
+            # Extract URL from markdown link syntax [text](url)
+            link: str | None = None
+            if link_cell and link_cell not in ("—", "-", ""):
+                m = _re.search(r"\(([^)]+)\)", link_cell)
+                link = m.group(1) if m else link_cell
+
+            # Access check
+            if sd_role == "*":
+                has_access = True
+            elif access_raw.strip() == "todos":
+                has_access = True
+            else:
+                allowed = {r.strip() for r in access_raw.split(",")}
+                has_access = sd_role in allowed
+
+            # Relevance score
+            score = 0
+            if route_for:
+                haystack = f"{src_id} {name} {domain}".lower()
+                score = sum(1 for w in route_for.lower().split() if w in haystack)
+
+            entry: dict = {
+                "id": src_id,
+                "name": name,
+                "domain": domain,
+                "owner": owner,
+                "steward": steward,
+                "status": status,
+                "has_access": has_access,
+                "_score": score,
+            }
+            if not has_access:
+                entry["access_hint"] = f"Acceso restringido a: {access_raw}. Contactar a {steward}."
+            if link:
+                entry["link"] = link
+
+            sources.append(entry)
+
+        if route_for:
+            sources.sort(key=lambda s: (-s["_score"], not s["has_access"]))
+        else:
+            sources.sort(key=lambda s: not s["has_access"])
+
+        for s in sources:
+            del s["_score"]
+
+        sources = sources[:limit]
+        accessible = [s for s in sources if s["has_access"]]
+        blocked = [s for s in sources if not s["has_access"]]
+
+        return {
+            "caller": {"user": ctx.user, "role": ctx.role, "sd_role": sd_role},
+            "total_returned": len(sources),
+            "accessible": accessible,
+            "blocked": blocked,
+        }
+
+    @mcp.tool
     async def who_am_i() -> dict:
         """Return the caller's identity: which company (tenant), user, and role.
 

@@ -17,8 +17,12 @@
       {
         "user": "lu",
         "role": "office_manager",
-        "profile": "Luciana Chiessa. Office Manager. Nexo operativo del equipo. Gestiona la coordinación interna, aprobación de contenido y comunicación directa con el
-  equipo y consultores."
+        "profile": "Luciana Chiessa. Office Manager. Nexo operativo del equipo. Gestiona la coordinación interna, aprobación de contenido y comunicación directa con el equipo y consultores."
+      },
+      {
+        "user": "gustavo",
+        "role": "gerente_proyectos",
+        "profile": "Gustavo. Gerente de Proyectos. Responsable del seguimiento de los 6 proyectos del Distrito Energético. Acceso a proyectos, estrategia, ecosistema y governance."
       }
     ]
 }
