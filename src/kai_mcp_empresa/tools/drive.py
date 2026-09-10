@@ -17,6 +17,72 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..config import Settings
+from ..identity import current_context
+
+# ---------------------------------------------------------------------------
+# Role-based access control for Drive folders
+# None = unrestricted (all folders). A set = only those folder IDs (and their
+# children one level deep) are accessible. The Shared Drive root is included
+# so every role can at least see the top-level structure.
+# ---------------------------------------------------------------------------
+
+_DRIVE_ROOT = "0ACfaqd7e8P7ZUk9PVA"
+
+ROLE_FOLDER_ALLOW: dict[str, set[str] | None] = {
+    "ceo":                 None,
+    "fundador":            None,
+    "consultora":          None,
+    "directora_operativa": None,
+    "dev":                 None,
+    "gerente_proyectos": {
+        _DRIVE_ROOT,
+        "1BFyMrLGIwpx9veiYPK8d_ymRXr2FmmJo",  # 01 - Proyectos
+        "1aQNC__PjUQZbTVnmqo2tuKTMAtL_gW43",  # 03 - Comunicación
+        "1QioWvqa3B7OlMJxpgZalkspqzb0vewFG",  # 04 - Comercial
+        "140n5_QobX9EKaHh_nP55qdGURIagOD6x",  # 05 - Legal
+        "1dJ4Bvr8qIrkQxtDn3qKcC2GBsR-rakgH",  # 07 - Institucional
+    },
+    "office_manager": {
+        _DRIVE_ROOT,
+        "19FGBjjKL7tlG7f0jBa-oYh9Qo-26MCVV",  # 00 - Admin
+        "1cQvykr1NlJkvCHJbfcJ4fwwMYf8QKYzT",  # 02 - Equipo
+        "1aQNC__PjUQZbTVnmqo2tuKTMAtL_gW43",  # 03 - Comunicación
+        "1dJ4Bvr8qIrkQxtDn3qKcC2GBsR-rakgH",  # 07 - Institucional
+    },
+}
+
+_ACCESS_DENIED = {
+    "error": "No tenés acceso a esta carpeta.",
+    "sugerencia": "Si necesitás esta información, consultá con Lu (coordinadora) o Sebastián.",
+}
+
+
+def _parents_of(file_id: str, drive_svc) -> list[str]:
+    """Return the immediate parent folder IDs of a Drive file/folder."""
+    try:
+        meta = (
+            drive_svc.files()
+            .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+            .execute()
+        )
+        return meta.get("parents", [])
+    except Exception:
+        return []
+
+
+def _is_allowed(role: str | None, folder_id: str, drive_svc) -> bool:
+    """Return True if the role can access folder_id or any of its parents."""
+    allowed = ROLE_FOLDER_ALLOW.get(role or "")
+    if allowed is None:
+        return True
+    if folder_id in allowed:
+        return True
+    # Check one level up — covers subfolders of allowed top-level folders.
+    for parent in _parents_of(folder_id, drive_svc):
+        if parent in allowed:
+            return True
+    return False
+
 
 _NOT_CONFIGURED = {
     "error": (
@@ -61,10 +127,17 @@ def register_drive_tools(mcp: FastMCP, settings: Settings) -> None:
         if not sa_json:
             return _NOT_CONFIGURED
 
+        ctx = current_context(settings)
+
         def _read() -> dict[str, Any]:
-            _, sheets_svc = _build_services(sa_json)
+            drive_svc, sheets_svc = _build_services(sa_json)
+
+            # Check that the sheet lives in a folder the caller can access.
+            if not _is_allowed(ctx.role, sheet_id, drive_svc):
+                return _ACCESS_DENIED
 
             meta = sheets_svc.spreadsheets().get(spreadsheetId=sheet_id).execute()
+
             available_tabs = [s["properties"]["title"] for s in meta["sheets"]]
             target_tab = tab if tab else available_tabs[0]
 
@@ -113,8 +186,14 @@ def register_drive_tools(mcp: FastMCP, settings: Settings) -> None:
         if not sa_json:
             return _NOT_CONFIGURED
 
+        ctx = current_context(settings)
+
         def _list() -> dict[str, Any]:
             drive_svc, _ = _build_services(sa_json)
+
+            if not _is_allowed(ctx.role, folder_id, drive_svc):
+                return _ACCESS_DENIED
+
             results = (
                 drive_svc.files()
                 .list(
