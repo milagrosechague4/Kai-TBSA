@@ -48,6 +48,14 @@ ROLE_FOLDER_ALLOW: dict[str, set[str] | None] = {
         "1cQvykr1NlJkvCHJbfcJ4fwwMYf8QKYzT",  # 02 - Equipo
         "1aQNC__PjUQZbTVnmqo2tuKTMAtL_gW43",  # 03 - Comunicación
         "1dJ4Bvr8qIrkQxtDn3qKcC2GBsR-rakgH",  # 07 - Institucional
+        # 06 - Finanzas (Drive Nico) — root + first-level subfolders
+        # to cover two levels deep via the one-level-up parent check
+        "19f7od2vNW5xvgruO_KD7leQzSEz0ngFj",  # raíz Nico
+        "1gXHAoxaXHTUZxypRIzC10jNPKgwFahLg",  # BALANCE TBSA
+        "1wG1LAqGHs3vYrg6Z74JbkjtWfu_S4Niq",  # COMPRAS TBSA
+        "19KJ4g_2T_5UknmSD35VGRC8lRYZ-zJfV",  # CONCILIACIONES TBSA
+        "1wxeW4HyEQikaq_kHSkxS3LT4TxETzYFb",  # EXTRACTOS BANCARIOS TBSA
+        "1W--kRV9OLB0zUwvHMhABmAV027moKo8C",  # PETROLERAS
     },
 }
 
