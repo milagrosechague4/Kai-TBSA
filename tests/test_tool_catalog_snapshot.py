@@ -48,4 +48,7 @@ async def test_catalog_has_expected_tools():
         "kai_history",
         "kai_revert",
         "who_am_i",
+        "kai_sources",
+        "kai_list_drive",
+        "kai_read_sheet",
     }

@@ -78,6 +78,20 @@
     }
   },
   {
+    "name": "kai_list_drive",
+    "description": "List files and folders in the company Google Drive.\n\nfolder_id: Drive folder ID or Shared Drive root ID.\nDefaults to the company Shared Drive root.\nReturns name, ID, type (file/folder), and URL for each entry.\nUse this to navigate the Drive structure and find sheet IDs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "folder_id": {
+          "default": "0ACfaqd7e8P7ZUk9PVA",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_read",
     "description": "Read a file from the company brain — whole, or a window of it.\n\n`path` is relative to the company root (e.g. \"todos.md\",\n\"reuniones/2026-06-17.md\"). For long files (transcripts, ledgers) pass\n`offset` (1-based start line) and `limit` (max lines) to page through\nwithout loading everything; the result includes `total_lines` and the\n`start_line`/`end_line` returned. Use kai_list to discover paths and\nkai_search to find files by content.",
     "inputSchema": {
@@ -97,6 +111,26 @@
       },
       "required": [
         "path"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "kai_read_sheet",
+    "description": "Read a Google Sheet from the company Drive and return it as a markdown table.\n\nsheet_id: the alphanumeric ID from the Sheets URL (the part after /d/).\ntab: sheet tab name to read. If omitted, reads the first tab.\nReturns the sheet as a markdown table plus metadata (tab name, row count,\navailable tabs). Use this to answer questions about press coverage,\nproject metrics, or any structured data stored in company Sheets.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sheet_id": {
+          "type": "string"
+        },
+        "tab": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sheet_id"
       ],
       "type": "object"
     }
@@ -138,6 +172,24 @@
       "required": [
         "query"
       ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "kai_sources",
+    "description": "Return the Source Directory entries the caller is authorized to access.\n\nReads `source-directory.md` from the tenant brain, filters by the\ncaller's role, and returns metadata to guide which files to kai_read.\nPass `route_for` with a topic or question to rank entries by relevance.\n`limit` caps results (max 30). Blocked entries are listed separately so\nthe agent can cite the steward rather than inventing inaccessible content.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "route_for": {
+          "default": "",
+          "type": "string"
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer"
+        }
+      },
       "type": "object"
     }
   },
