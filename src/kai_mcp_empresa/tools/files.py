@@ -15,7 +15,7 @@ from ..identity import current_context, tenant_root
 from ..locks import tenant_lock
 
 
-_WRITE_ALLOWED = {"directora_operativa", "gerente_proyectos", "dev"}
+_WRITE_ALLOWED = {"directora_operativa", "gerente_proyectos", "ceo", "dev"}
 
 def _check_write(ctx) -> dict | None:
     """Return an error dict if the caller can't write, None if they can."""

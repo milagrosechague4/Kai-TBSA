@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "google-api-python-client>=2.100",
     "google-auth>=2.23",
+    "pypdf>=6.18.1",
 ]
 
 [project.optional-dependencies]

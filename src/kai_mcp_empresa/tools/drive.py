@@ -259,20 +259,39 @@ def register_drive_tools(mcp: FastMCP, settings: Settings) -> None:
                 return {"error": f"No se pudo acceder al documento: {e}"}
 
             mime = meta.get("mimeType", "")
-            if mime != "application/vnd.google-apps.document":
-                return {
-                    "error": f"Este archivo no es un Google Doc (tipo: {mime}). Usá kai_read_sheet para Sheets o kai_list_drive para ver el contenido del Drive."
-                }
 
-            try:
-                content = (
-                    drive_svc.files()
-                    .export(fileId=doc_id, mimeType="text/plain")
-                    .execute()
-                )
-                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
-            except Exception as e:
-                return {"error": f"Error exportando el documento: {e}"}
+            if mime == "application/vnd.google-apps.document":
+                # Google Doc nativo → exportar como texto plano
+                try:
+                    content = (
+                        drive_svc.files()
+                        .export(fileId=doc_id, mimeType="text/plain")
+                        .execute()
+                    )
+                    text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+                except Exception as e:
+                    return {"error": f"Error exportando el documento: {e}"}
+
+            elif mime == "application/pdf":
+                # PDF binario → descargar y parsear con pypdf
+                try:
+                    import io
+                    from pypdf import PdfReader
+
+                    request = drive_svc.files().get_media(fileId=doc_id, supportsAllDrives=True)
+                    pdf_bytes = io.BytesIO(request.execute())
+                    reader = PdfReader(pdf_bytes)
+                    pages = [page.extract_text() or "" for page in reader.pages]
+                    text = "\n\n".join(pages).strip()
+                    if not text:
+                        return {"error": "El PDF no tiene texto extraíble (puede ser imagen escaneada)."}
+                except Exception as e:
+                    return {"error": f"Error parseando el PDF: {e}"}
+
+            else:
+                return {
+                    "error": f"Tipo de archivo no soportado ({mime}). kai_read_doc lee Google Docs y PDFs. Usá kai_read_sheet para Sheets."
+                }
 
             return {
                 "doc_id": doc_id,
