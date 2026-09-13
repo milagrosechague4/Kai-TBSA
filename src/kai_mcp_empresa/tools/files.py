@@ -15,6 +15,18 @@ from ..identity import current_context, tenant_root
 from ..locks import tenant_lock
 
 
+_WRITE_ALLOWED = {"directora_operativa", "gerente_proyectos", "dev"}
+
+def _check_write(ctx) -> dict | None:
+    """Return an error dict if the caller can't write, None if they can."""
+    if (ctx.role or "") not in _WRITE_ALLOWED:
+        return {
+            "error": "Sin permiso de escritura.",
+            "detalle": f"Tu rol ({ctx.role}) es de solo lectura. Para actualizar el brain, contactá a Mila o Gustavo.",
+        }
+    return None
+
+
 def register_tools(mcp: FastMCP, settings: Settings) -> None:
     def _root():
         ctx = current_context(settings)
@@ -44,6 +56,8 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         allowed (.md, .txt, .json, .csv, .yaml). Returns the written path + size.
         """
         ctx, root = _root()
+        if err := _check_write(ctx):
+            return err
         cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_write")
         async with tenant_lock(root):
             return await asyncio.to_thread(
@@ -64,6 +78,8 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         occurrence. Returns the path and number of replacements.
         """
         ctx, root = _root()
+        if err := _check_write(ctx):
+            return err
         cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_edit")
         async with tenant_lock(root):
             return await asyncio.to_thread(
@@ -80,6 +96,8 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         irreversible, so confirm the path with kai_list before calling.
         """
         ctx, root = _root()
+        if err := _check_write(ctx):
+            return err
         cc = CommitContext(user=ctx.user, role=ctx.role, tool="kai_delete")
         async with tenant_lock(root):
             return await asyncio.to_thread(fs.delete_file, settings, root, path, cc)

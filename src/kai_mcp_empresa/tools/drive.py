@@ -228,3 +228,57 @@ def register_drive_tools(mcp: FastMCP, settings: Settings) -> None:
             return {"folder_id": folder_id, "count": len(entries), "entries": entries}
 
         return await asyncio.to_thread(_list)
+
+    @mcp.tool
+    async def kai_read_doc(doc_id: str) -> dict:
+        """Read the text content of a Google Doc from the company Drive.
+
+        doc_id: the alphanumeric ID from the Google Doc URL (the part after /d/).
+        Returns the document text as plain text. Only works with Google Docs
+        (not PDFs, Sheets, or other file types — use kai_read_sheet for Sheets).
+        Use kai_list_drive to find document IDs.
+        """
+        if not sa_json:
+            return _NOT_CONFIGURED
+
+        ctx = current_context(settings)
+
+        def _read_doc() -> dict[str, Any]:
+            drive_svc, _ = _build_services(sa_json)
+
+            if not _is_allowed(ctx.role, doc_id, drive_svc):
+                return _ACCESS_DENIED
+
+            try:
+                meta = (
+                    drive_svc.files()
+                    .get(fileId=doc_id, fields="name,mimeType", supportsAllDrives=True)
+                    .execute()
+                )
+            except Exception as e:
+                return {"error": f"No se pudo acceder al documento: {e}"}
+
+            mime = meta.get("mimeType", "")
+            if mime != "application/vnd.google-apps.document":
+                return {
+                    "error": f"Este archivo no es un Google Doc (tipo: {mime}). Usá kai_read_sheet para Sheets o kai_list_drive para ver el contenido del Drive."
+                }
+
+            try:
+                content = (
+                    drive_svc.files()
+                    .export(fileId=doc_id, mimeType="text/plain")
+                    .execute()
+                )
+                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+            except Exception as e:
+                return {"error": f"Error exportando el documento: {e}"}
+
+            return {
+                "doc_id": doc_id,
+                "name": meta.get("name", ""),
+                "characters": len(text),
+                "content": text,
+            }
+
+        return await asyncio.to_thread(_read_doc)

@@ -116,6 +116,22 @@
     }
   },
   {
+    "name": "kai_read_doc",
+    "description": "Read the text content of a Google Doc from the company Drive.\n\ndoc_id: the alphanumeric ID from the Google Doc URL (the part after /d/).\nReturns the document text as plain text. Only works with Google Docs\n(not PDFs, Sheets, or other file types — use kai_read_sheet for Sheets).\nUse kai_list_drive to find document IDs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "doc_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc_id"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_read_sheet",
     "description": "Read a Google Sheet from the company Drive and return it as a markdown table.\n\nsheet_id: the alphanumeric ID from the Sheets URL (the part after /d/).\ntab: sheet tab name to read. If omitted, reads the first tab.\nReturns the sheet as a markdown table plus metadata (tab name, row count,\navailable tabs). Use this to answer questions about press coverage,\nproject metrics, or any structured data stored in company Sheets.",
     "inputSchema": {
