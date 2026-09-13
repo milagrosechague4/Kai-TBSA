@@ -164,6 +164,14 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
 
         import re as _re
 
+        import unicodedata as _ud
+
+        def _norm(s: str) -> str:
+            return _ud.normalize("NFD", s.lower()).encode("ascii", "ignore").decode()
+
+        _q_norm = _norm(route_for) if route_for else ""
+        _q_words = _q_norm.split()
+
         sources = []
         for line in raw.splitlines():
             line = line.strip()
@@ -201,11 +209,15 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
                 allowed = {r.strip() for r in access_raw.split(",")}
                 has_access = sd_role in allowed
 
-            # Relevance score
+            # Relevance score: accent-normalized, field-weighted, phrase bonus
             score = 0
             if route_for:
-                haystack = f"{src_id} {name} {domain}".lower()
-                score = sum(1 for w in route_for.lower().split() if w in haystack)
+                id_n, name_n, domain_n = _norm(src_id), _norm(name), _norm(domain)
+                score += sum(3 for w in _q_words if w in id_n)
+                score += sum(3 for w in _q_words if w in name_n)
+                score += sum(2 for w in _q_words if w in domain_n)
+                if _q_norm in f"{id_n} {name_n} {domain_n}":
+                    score += 10
 
             entry: dict = {
                 "id": src_id,
@@ -262,4 +274,31 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
             "user": ctx.user,
             "role": ctx.role,
             "profile": profile,
+        }
+
+    @mcp.tool
+    async def kai_runtime_config() -> dict:
+        """Return server version, available tools, and caller identity.
+
+        Use to verify connectivity and detect server updates. The returned
+        `tools` list is the authoritative catalog for this deployment — compare
+        it against the plugin's local skill catalog to know when a ZIP update
+        is available.
+        """
+        from datetime import datetime, timezone
+
+        ctx, _ = _root()
+        return {
+            "server": {
+                "name": "kai-mcp-empresa",
+                "version": "0.1.0",
+                "mcp_path": settings.path,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            "caller": {"tenant": ctx.tenant, "user": ctx.user, "role": ctx.role},
+            "tools": sorted([
+                "kai_read", "kai_write", "kai_edit", "kai_delete", "kai_list",
+                "kai_search", "kai_history", "kai_revert", "kai_sources",
+                "kai_list_drive", "kai_read_sheet", "who_am_i", "kai_runtime_config",
+            ]),
         }

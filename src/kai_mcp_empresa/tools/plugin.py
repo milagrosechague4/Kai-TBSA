@@ -25,7 +25,13 @@ Routes (all require Authorization: Bearer <token>):
 from __future__ import annotations
 
 import asyncio
+import base64 as _b64
+import hashlib as _hs
+import html as _html_lib
 import json
+import time as _time
+import uuid as _uuid
+from urllib.parse import parse_qs, urlencode
 
 from fastmcp import FastMCP
 from starlette.requests import Request
@@ -319,6 +325,18 @@ _OPENAPI_SPEC = {
                 "responses": {"200": {"description": "Commits que modificaron el archivo"}},
             }
         },
+        "/api/config": {
+            "get": {
+                "operationId": "getConfig",
+                "summary": "Versión del servidor y tools disponibles",
+                "description": (
+                    "Devuelve la versión del servidor Kai, el path MCP, la identidad del caller "
+                    "y la lista de tools activos. Usar para verificar conectividad y "
+                    "detectar cuando hay una actualización del ZIP disponible."
+                ),
+                "responses": {"200": {"description": "Versión, tools y caller"}},
+            }
+        },
     },
 }
 
@@ -328,6 +346,19 @@ _LOGO_SVG = """\
   <text x="32" y="44" font-family="monospace" font-size="28" font-weight="bold"
         text-anchor="middle" fill="#38bdf8">K</text>
 </svg>"""
+
+
+# ── OAuth 2.1 + PKCE state ───────────────────────────────────────────────────
+
+_AUTH_CODES: dict[str, dict] = {}   # code → {token, challenge, expires_at}
+_CODE_TTL = 600  # 10 minutes
+
+
+def _pkce_ok(verifier: str, challenge: str) -> bool:
+    """Verify PKCE S256: SHA-256(verifier) in base64url == challenge."""
+    digest = _hs.sha256(verifier.encode("ascii")).digest()
+    computed = _b64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    return computed == challenge
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -511,3 +542,132 @@ def register_plugin(mcp: FastMCP, settings: Settings) -> None:
             return JSONResponse(result)
         except fs.PathError as exc:
             return _err(str(exc), 404)
+
+    # ── Runtime config ────────────────────────────────────────────────────────
+
+    @mcp.custom_route("/api/config", methods=["GET"])
+    async def api_config(request: Request) -> JSONResponse:
+        from datetime import datetime, timezone
+
+        ctx, _, err = resolve_caller(settings, request)
+        if err:
+            return err
+        return JSONResponse({
+            "server": {
+                "name": "kai-mcp-empresa",
+                "version": "0.1.0",
+                "mcp_path": settings.path,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            "caller": {"tenant": ctx.tenant, "user": ctx.user, "role": ctx.role},
+            "tools": sorted([
+                "kai_read", "kai_write", "kai_edit", "kai_delete", "kai_list",
+                "kai_search", "kai_history", "kai_revert", "kai_sources",
+                "kai_list_drive", "kai_read_sheet", "who_am_i", "kai_runtime_config",
+            ]),
+        })
+
+    # ── OAuth 2.1 + PKCE ─────────────────────────────────────────────────────
+
+    @mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET"])
+    async def oauth_metadata(_: Request) -> JSONResponse:
+        return JSONResponse({
+            "issuer": _SERVER_URL,
+            "authorization_endpoint": f"{_SERVER_URL}/oauth/authorize",
+            "token_endpoint": f"{_SERVER_URL}/oauth/token",
+            "token_endpoint_auth_methods_supported": ["none"],
+            "response_types_supported": ["code"],
+            "code_challenge_methods_supported": ["S256"],
+            "grant_types_supported": ["authorization_code"],
+        })
+
+    @mcp.custom_route("/oauth/authorize", methods=["GET"])
+    async def oauth_authorize(request: Request) -> Response:
+        params = request.query_params
+        challenge = params.get("code_challenge", "")
+        method = params.get("code_challenge_method", "S256")
+        redirect_uri = params.get("redirect_uri", "")
+        state = params.get("state", "")
+        token = params.get("token", "")
+
+        if method != "S256":
+            return _err("Only code_challenge_method=S256 is supported", 400)
+        if not challenge:
+            return _err("code_challenge is required", 400)
+
+        if not token:
+            esc = _html_lib.escape
+            body = (
+                "<!DOCTYPE html><html><head>"
+                "<meta charset=utf-8><title>Kai — Autorización</title>"
+                "<style>body{font-family:sans-serif;max-width:420px;margin:80px auto;padding:0 16px}"
+                "input{display:block;width:100%;padding:10px;margin:12px 0;box-sizing:border-box}"
+                "button{padding:10px 20px;background:#0f172a;color:#fff;border:none;cursor:pointer}"
+                "</style></head><body>"
+                "<h2>Kai Brain</h2>"
+                "<p>Ingresá tu token de acceso personal:</p>"
+                '<form method="get" action="/oauth/authorize">'
+                f'<input type="hidden" name="code_challenge" value="{esc(challenge)}">'
+                f'<input type="hidden" name="code_challenge_method" value="{esc(method)}">'
+                f'<input type="hidden" name="redirect_uri" value="{esc(redirect_uri)}">'
+                f'<input type="hidden" name="state" value="{esc(state)}">'
+                '<input type="password" name="token" placeholder="tu-token-personal" autofocus>'
+                '<button type="submit">Autorizar</button>'
+                "</form></body></html>"
+            )
+            return Response(content=body, media_type="text/html")
+
+        # Validate token against whitelist
+        from ..auth import _tokens_for
+
+        if token not in _tokens_for(settings):
+            return Response(content="Token inválido.", media_type="text/plain", status_code=401)
+
+        # Issue single-use auth code, store with PKCE challenge
+        code = _uuid.uuid4().hex
+        now = _time.monotonic()
+        _AUTH_CODES[code] = {"token": token, "challenge": challenge, "expires_at": now + _CODE_TTL}
+
+        # Opportunistic cleanup of expired codes
+        stale = [k for k, v in list(_AUTH_CODES.items()) if v["expires_at"] < now]
+        for k in stale:
+            _AUTH_CODES.pop(k, None)
+
+        if redirect_uri:
+            qs = urlencode({"code": code, "state": state})
+            return Response(status_code=302, headers={"Location": f"{redirect_uri}?{qs}"})
+        return JSONResponse({"code": code, "state": state})
+
+    @mcp.custom_route("/oauth/token", methods=["POST"])
+    async def oauth_token(request: Request) -> JSONResponse:
+        content_type = request.headers.get("content-type", "")
+        try:
+            if "application/json" in content_type:
+                body_params = await request.json()
+            else:
+                raw = await request.body()
+                body_params = {k: v[0] for k, v in parse_qs(raw.decode()).items()}
+        except Exception:
+            return _err("invalid request body", 400)
+
+        if body_params.get("grant_type") != "authorization_code":
+            return _err("unsupported_grant_type", 400)
+
+        code = body_params.get("code", "")
+        verifier = body_params.get("code_verifier", "")
+        if not code or not verifier:
+            return _err("code and code_verifier are required", 400)
+
+        entry = _AUTH_CODES.pop(code, None)
+        if entry is None:
+            return _err("invalid_grant: unknown or already-used code", 400)
+        if _time.monotonic() > entry["expires_at"]:
+            return _err("invalid_grant: code expired", 400)
+        if not _pkce_ok(verifier, entry["challenge"]):
+            return _err("invalid_grant: code_verifier mismatch", 400)
+
+        return JSONResponse({
+            "access_token": entry["token"],
+            "token_type": "bearer",
+            "expires_in": 0,
+        })

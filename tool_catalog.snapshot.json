@@ -156,6 +156,15 @@
     }
   },
   {
+    "name": "kai_runtime_config",
+    "description": "Return server version, available tools, and caller identity.\n\nUse to verify connectivity and detect server updates. The returned\n`tools` list is the authoritative catalog for this deployment — compare\nit against the plugin's local skill catalog to know when a ZIP update\nis available.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_search",
     "description": "Search the company brain for files containing a phrase.\n\nCase-insensitive substring match across every text file. Returns one\nresult per matching file with the matched line numbers and snippets, so\nyou can then kai_read the relevant file.",
     "inputSchema": {

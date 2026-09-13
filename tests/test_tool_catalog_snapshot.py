@@ -51,4 +51,5 @@ async def test_catalog_has_expected_tools():
         "kai_sources",
         "kai_list_drive",
         "kai_read_sheet",
+        "kai_runtime_config",
     }
