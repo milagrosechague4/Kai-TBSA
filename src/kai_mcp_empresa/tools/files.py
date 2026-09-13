@@ -219,6 +219,9 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
                 if _q_norm in f"{id_n} {name_n} {domain_n}":
                     score += 10
 
+            if not has_access:
+                continue
+
             entry: dict = {
                 "id": src_id,
                 "name": name,
@@ -226,33 +229,27 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
                 "owner": owner,
                 "steward": steward,
                 "status": status,
-                "has_access": has_access,
                 "_score": score,
             }
-            if not has_access:
-                entry["access_hint"] = f"Acceso restringido a: {access_raw}. Contactar a {steward}."
             if link:
                 entry["link"] = link
 
             sources.append(entry)
 
         if route_for:
-            sources.sort(key=lambda s: (-s["_score"], not s["has_access"]))
+            sources.sort(key=lambda s: -s["_score"])
         else:
-            sources.sort(key=lambda s: not s["has_access"])
+            sources.sort(key=lambda s: s["name"])
 
         for s in sources:
             del s["_score"]
 
         sources = sources[:limit]
-        accessible = [s for s in sources if s["has_access"]]
-        blocked = [s for s in sources if not s["has_access"]]
 
         return {
             "caller": {"user": ctx.user, "role": ctx.role, "sd_role": sd_role},
             "total_returned": len(sources),
-            "accessible": accessible,
-            "blocked": blocked,
+            "accessible": sources,
         }
 
     @mcp.tool
