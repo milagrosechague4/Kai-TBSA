@@ -84,15 +84,14 @@ def _to_markdown(records: list[dict]) -> str:
         return "(registros sin campos)"
 
     def _row(cells: list[str]) -> str:
-        return "| " + " | ".join(c.replace("
-", " ").replace("|", "\|") for c in cells) + " |"
+        cleaned = [str(c).replace("\n", " ").replace("|", r"\|") for c in cells]
+        return "| " + " | ".join(cleaned) + " |"
 
     lines = [_row(headers), _row(["---"] * len(headers))]
     for rec in records:
         fields = rec.get("fields", {})
         lines.append(_row([_stringify(fields.get(h)) for h in headers]))
-    return "
-".join(lines)
+    return "\n".join(lines)
 
 
 def _fetch(token: str, table_info: dict, formula: str, limit: int) -> dict[str, Any]:
@@ -151,8 +150,8 @@ def register_airtable_tools(mcp: FastMCP, settings: Settings) -> None:
         """Query the TBSA Airtable base and return records as a markdown table.
 
         table: which table to query. Options:
-          - "calendario" → Calendario de Contenido (posts LinkedIn: estado, fecha, canal, copy)
-          - "leads"      → LinkedIn Mensajes Sebastián (contactos: tipo, prioridad, estado, notas)
+          - "calendario" -> Calendario de Contenido (posts LinkedIn: estado, fecha, canal, copy)
+          - "leads"      -> LinkedIn Mensajes Sebastian (contactos: tipo, prioridad, estado, notas)
 
         filter_formula: optional Airtable formula to filter records. Examples:
           - '{Estado} = "Aprobado"'
@@ -164,19 +163,20 @@ def register_airtable_tools(mcp: FastMCP, settings: Settings) -> None:
         limit: max records to return (default 50, max 100).
 
         Use this to answer questions like:
-          - "¿Qué posts están programados esta semana?" → table="calendario"
-          - "¿Qué posts están pendientes de aprobación?" → table="calendario", filter_formula='{Estado}="Enviado a aprobación"'
-          - "¿Cuál es el estado del post de Mendoza?" → table="calendario"
-          - "¿Alguien de infraestructura me escribió en LinkedIn?" → table="leads"
-          - "¿Qué leads están sin respuesta?" → table="leads", filter_formula='{Estado}="Entrante"'
-          - "¿Qué contactos son socios potenciales?" → table="leads", filter_formula='{Tipo}="Socio potencial"'
+          - "Que posts estan programados esta semana?" -> table="calendario"
+          - "Que posts estan pendientes de aprobacion?" -> table="calendario",
+            filter_formula='{Estado}="Enviado a aprobacion"'
+          - "Cual es el estado del post de Mendoza?" -> table="calendario"
+          - "Alguien de infraestructura me escribio en LinkedIn?" -> table="leads"
+          - "Que leads estan sin respuesta?" -> table="leads",
+            filter_formula='{Estado}="Entrante"'
         """
         if not token:
             return _NOT_CONFIGURED
 
         key = table.lower().strip()
         if key not in _TABLES:
-            opts = ", ".join(f'"{{k}}"' for k in _TABLES)
+            opts = ", ".join('"' + k + '"' for k in _TABLES)
             return {"error": f"Tabla '{table}' no reconocida. Opciones: {opts}."}
 
         limit = max(1, min(limit, 100))
