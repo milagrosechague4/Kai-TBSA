@@ -325,6 +325,44 @@ _OPENAPI_SPEC = {
                 "responses": {"200": {"description": "Commits que modificaron el archivo"}},
             }
         },
+        "/api/airtable": {
+            "get": {
+                "operationId": "queryAirtable",
+                "summary": "Consultar Airtable — calendario de contenido o leads de LinkedIn",
+                "description": (
+                    "Consulta la base Airtable de TBSA. "
+                    "table='calendario' devuelve el Calendario de Contenido (posts LinkedIn: estado, fechas, canal). "
+                    "table='leads' devuelve los mensajes y contactos entrantes de LinkedIn. "
+                    "Usar filter_formula para filtrar por estado, tipo u otros campos."
+                ),
+                "parameters": [
+                    {
+                        "name": "table",
+                        "in": "query",
+                        "required": True,
+                        "description": "Tabla a consultar: 'calendario' (posts LinkedIn) o 'leads' (mensajes/contactos LinkedIn).",
+                        "schema": {"type": "string", "enum": ["calendario", "leads"]},
+                    },
+                    {
+                        "name": "filter_formula",
+                        "in": "query",
+                        "description": (
+                            "Fórmula Airtable para filtrar registros. "
+                            "Ejemplos: '{Estado} = \"Aprobado\"' · '{Tipo} = \"Socio potencial\"'. "
+                            "Dejar vacío para traer todos los registros."
+                        ),
+                        "schema": {"type": "string", "default": ""},
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Máximo de registros a devolver (default 50, max 100).",
+                        "schema": {"type": "integer", "default": 50},
+                    },
+                ],
+                "responses": {"200": {"description": "Registros de Airtable como tabla markdown"}},
+            }
+        },
         "/api/config": {
             "get": {
                 "operationId": "getConfig",
@@ -563,9 +601,35 @@ def register_plugin(mcp: FastMCP, settings: Settings) -> None:
             "tools": sorted([
                 "kai_read", "kai_write", "kai_edit", "kai_delete", "kai_list",
                 "kai_search", "kai_history", "kai_revert", "kai_sources",
-                "kai_list_drive", "kai_read_sheet", "who_am_i", "kai_runtime_config",
+                "kai_list_drive", "kai_read_sheet", "kai_read_doc",
+                "kai_query_airtable", "who_am_i", "kai_runtime_config",
             ]),
         })
+
+    @mcp.custom_route("/api/airtable", methods=["GET"])
+    async def api_airtable(request: Request) -> JSONResponse:
+        ctx, _, err = resolve_caller(settings, request)
+        if err:
+            return err
+        table = request.query_params.get("table", "")
+        if not table:
+            return _err("table is required. Options: 'calendario', 'leads'")
+        filter_formula = request.query_params.get("filter_formula", "")
+        try:
+            limit = int(request.query_params.get("limit", "50"))
+        except ValueError:
+            return _err("limit must be an integer")
+        from .airtable import _fetch, _TABLES, _NOT_CONFIGURED as _AT_NOT_CFG
+        if not settings.airtable_token:
+            return JSONResponse(_AT_NOT_CFG)
+        key = table.lower().strip()
+        if key not in _TABLES:
+            opts = ", ".join(f'"{k}"' for k in _TABLES)
+            return _err(f"Tabla '{table}' no reconocida. Opciones: {opts}.")
+        result = await asyncio.to_thread(
+            _fetch, settings.airtable_token, _TABLES[key], filter_formula, max(1, min(limit, 100))
+        )
+        return JSONResponse(result)
 
     # ── OAuth 2.1 + PKCE ─────────────────────────────────────────────────────
 
