@@ -10,7 +10,6 @@ import secrets
 import time
 
 from fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -59,26 +58,6 @@ def _verify_state(state: str, client_secret: str) -> dict | None:
         return None
 
 
-# ── Bearer-in-URL middleware ─────────────────────────────────────────────────
-# Allows Claude connectors (and any HTTP client) to pass the Kai token as a
-# query param instead of an Authorization header:
-#   /mcp?bearer=kai_tbsa_xxx
-# The middleware promotes it to "Authorization: Bearer …" before FastMCP auth
-# sees the request, so no changes are needed elsewhere.
-
-class BearerFromQueryMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        bearer = request.query_params.get("bearer")
-        if bearer and "authorization" not in request.headers:
-            headers = dict(request.headers)
-            headers["authorization"] = f"Bearer {bearer}"
-            request._headers = request.headers.__class__(
-                scope=request.scope,
-                headers=[(k.encode(), v.encode()) for k, v in headers.items()],
-            )
-        return await call_next(request)
-
-
 # ── Server factory ───────────────────────────────────────────────────────────
 
 def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
@@ -86,7 +65,6 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
     settings.validate_fail_closed()
 
     mcp = FastMCP(name="kai-mcp-empresa", auth=build_auth(settings))
-    mcp.add_middleware(BearerFromQueryMiddleware)
     register_tools(mcp, settings)
     register_drive_tools(mcp, settings)
     register_airtable_tools(mcp, settings)
