@@ -21,7 +21,7 @@ from ..identity import current_context
 CALENDAR_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "openid",
-    "email",
+    "https://www.googleapis.com/auth/userinfo.email",
 ]
 
 _NOT_CONFIGURED = {
