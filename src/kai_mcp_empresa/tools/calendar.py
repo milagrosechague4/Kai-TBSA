@@ -21,6 +21,9 @@ from ..identity import current_context
 GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/tasks.readonly",
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
 ]

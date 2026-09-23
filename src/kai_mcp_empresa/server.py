@@ -20,6 +20,7 @@ from .obs import ToolCallLogger
 from .tools.airtable import register_airtable_tools
 from .tools.calendar import CALENDAR_SCOPES, register_calendar_tools, save_user_creds
 from .tools.gmail import register_gmail_tools
+from .tools.google_personal import register_google_personal_tools
 from .tools.drive import register_drive_tools
 from .tools.files import register_tools
 from .tools.plugin import register_plugin
@@ -69,6 +70,7 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
     register_airtable_tools(mcp, settings)
     register_calendar_tools(mcp, settings)
     register_gmail_tools(mcp, settings)
+    register_google_personal_tools(mcp, settings)
     register_plugin(mcp, settings)
 
     if settings.log_toolcalls:
@@ -253,22 +255,32 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kai Brain · Calendar conectado</title>
+  <title>Kai Brain · Google conectado</title>
   <style>
     body {{ font-family: -apple-system, sans-serif; background: #101820; color: #d8e2ea;
            display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
-    .box {{ text-align: center; max-width: 420px; padding: 40px; }}
+    .box {{ text-align: center; max-width: 480px; padding: 40px; }}
     .check {{ font-size: 48px; margin-bottom: 16px; }}
-    h1 {{ font-size: 22px; font-weight: 700; color: #fff; margin: 0 0 10px; }}
-    p {{ font-size: 15px; color: #6b7c8f; line-height: 1.6; margin: 0; }}
+    h1 {{ font-size: 22px; font-weight: 700; color: #fff; margin: 0 0 12px; }}
+    .chips {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px 0 20px; }}
+    .chip {{ font-size: 12px; font-weight: 600; background: #1b2636; border: 1px solid #243545;
+             color: #8899aa; padding: 4px 10px; border-radius: 4px; }}
+    p {{ font-size: 14px; color: #6b7c8f; line-height: 1.6; margin: 0; }}
     .user {{ color: #C41230; font-weight: 600; }}
   </style>
 </head>
 <body>
   <div class="box">
     <div class="check">✓</div>
-    <h1>Google Calendar conectado</h1>
-    <p>Ya podés usar <strong>@Kai Brain TBSA — kai_calendar</strong> en ChatGPT.<br>
+    <h1>Google conectado</h1>
+    <div class="chips">
+      <span class="chip">Calendar</span>
+      <span class="chip">Gmail</span>
+      <span class="chip">Drive</span>
+      <span class="chip">Contacts</span>
+      <span class="chip">Tasks</span>
+    </div>
+    <p>Ya podés usar <strong>@Kai Brain TBSA</strong> en ChatGPT.<br>
     Conectado como <span class="user">{user}</span> en el tenant <span class="user">{tenant}</span>.</p>
   </div>
 </body>
