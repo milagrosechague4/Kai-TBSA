@@ -5,6 +5,7 @@ that tenant's folder — the tenant is never an argument."""
 from __future__ import annotations
 
 import asyncio
+import re
 
 from fastmcp import FastMCP
 
@@ -16,6 +17,53 @@ from ..locks import tenant_lock
 
 
 _WRITE_ALLOWED = {"directora_operativa", "consultora", "gerente_proyectos", "ceo", "dev"}
+
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+_ACCESS_INLINE_RE = re.compile(r"^access\s*:\s*\[([^\]]+)\]", re.MULTILINE)
+_ACCESS_FIELD_RE = re.compile(r"^access\s*:", re.MULTILINE)
+_ACCESS_BULLET_RE = re.compile(r"^\s*-\s*(\S+)", re.MULTILINE)
+
+
+def _frontmatter_access(content: str) -> list[str] | None:
+    """Return the access list from YAML frontmatter, or None if unrestricted.
+
+    Handles both inline (`access: [a, b]`) and bullet (`- a\\n- b`) forms.
+    Returns None when there's no frontmatter or no access field.
+    """
+    m = _FRONTMATTER_RE.match(content)
+    if not m:
+        return None
+    front = m.group(1)
+    # Inline form: access: [ceo, consultora, office_manager]
+    inline = _ACCESS_INLINE_RE.search(front)
+    if inline:
+        return [r.strip().strip("'\"") for r in inline.group(1).split(",") if r.strip()]
+    # Block form: access:\n  - ceo\n  - consultora
+    if _ACCESS_FIELD_RE.search(front):
+        field_start = _ACCESS_FIELD_RE.search(front).end()
+        block = front[field_start:]
+        # Collect bullets until the next non-indented key
+        bullets = []
+        for line in block.splitlines():
+            if re.match(r"^\s*-\s*", line):
+                bullets.append(re.sub(r"^\s*-\s*", "", line).strip().strip("'\""))
+            elif re.match(r"^\S", line) and line.strip():
+                break
+        return bullets if bullets else None
+    return None
+
+
+def _check_file_access(content: str, role: str | None) -> dict | None:
+    """Return an error dict if the caller's role can't read this file, else None."""
+    allowed = _frontmatter_access(content)
+    if allowed is None:
+        return None
+    if (role or "") in allowed or role == "dev":
+        return None
+    return {
+        "error": "Acceso restringido.",
+        "detalle": "No tenés acceso a este archivo. Para más información, consultá con Sebastián o Lu.",
+    }
 
 def _check_write(ctx) -> dict | None:
     """Return an error dict if the caller can't write, None if they can."""
@@ -43,8 +91,12 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         `start_line`/`end_line` returned. Use kai_list to discover paths and
         kai_search to find files by content.
         """
-        _, root = _root()
-        return fs.read_file(settings, root, path, offset, limit)
+        ctx, root = _root()
+        result = fs.read_file(settings, root, path, offset, limit)
+        if "content" in result:
+            if err := _check_file_access(result["content"], ctx.role):
+                return err
+        return result
 
     @mcp.tool
     async def kai_write(path: str, content: str, mode: str = "overwrite") -> dict:
@@ -121,9 +173,21 @@ def register_tools(mcp: FastMCP, settings: Settings) -> None:
         result per matching file with the matched line numbers and snippets, so
         you can then kai_read the relevant file.
         """
-        _, root = _root()
+        ctx, root = _root()
         limit = max(1, min(limit, 100))
-        return fs.search(settings, root, query, limit)
+        results = fs.search(settings, root, query, limit)
+        # Strip snippets from files the caller can't read — keep the entry so
+        # the agent knows the file exists but doesn't leak restricted content.
+        filtered = []
+        for entry in results:
+            try:
+                raw = fs.read_file(settings, root, entry["path"])
+                if _check_file_access(raw.get("content", ""), ctx.role):
+                    continue  # skip restricted files entirely
+            except Exception:
+                pass
+            filtered.append(entry)
+        return filtered
 
     @mcp.tool
     async def kai_history(path: str, limit: int = 20) -> list[dict]:
