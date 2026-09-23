@@ -19,6 +19,7 @@ from .fs import sweep_stale_temps
 from .obs import ToolCallLogger
 from .tools.airtable import register_airtable_tools
 from .tools.calendar import CALENDAR_SCOPES, register_calendar_tools, save_user_creds
+from .tools.gmail import register_gmail_tools
 from .tools.drive import register_drive_tools
 from .tools.files import register_tools
 from .tools.plugin import register_plugin
@@ -67,6 +68,7 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
     register_drive_tools(mcp, settings)
     register_airtable_tools(mcp, settings)
     register_calendar_tools(mcp, settings)
+    register_gmail_tools(mcp, settings)
     register_plugin(mcp, settings)
 
     if settings.log_toolcalls:

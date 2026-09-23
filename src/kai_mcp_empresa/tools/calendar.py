@@ -18,11 +18,15 @@ from fastmcp import FastMCP
 from ..config import Settings
 from ..identity import current_context
 
-CALENDAR_SCOPES = [
+GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
 ]
+
+# Backwards-compat alias used in server.py OAuth routes
+CALENDAR_SCOPES = GOOGLE_SCOPES
 
 _NOT_CONFIGURED = {
     "error": (
