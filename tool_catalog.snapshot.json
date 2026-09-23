@@ -92,6 +92,30 @@
     }
   },
   {
+    "name": "kai_query_airtable",
+    "description": "Query the TBSA Airtable base and return records as a markdown table.\n\ntable: which table to query. Options:\n  - \"calendario\" -> Calendario de Contenido (posts LinkedIn: estado, fecha, canal, copy)\n  - \"leads\"      -> LinkedIn Mensajes Sebastian (contactos: tipo, prioridad, estado, notas)\n\nfilter_formula: optional Airtable formula to filter records. Examples:\n  - '{Estado} = \"Aprobado\"'\n  - '{Estado} = \"Publicado\"'\n  - '{Tipo} = \"Socio potencial\"'\n  - 'AND({Estado} = \"Entrante\", {Prioridad} = \"Alta\")'\n  Leave empty to return all records.\n\nlimit: max records to return (default 50, max 100).\n\nUse this to answer questions like:\n  - \"Que posts estan programados esta semana?\" -> table=\"calendario\"\n  - \"Que posts estan pendientes de aprobacion?\" -> table=\"calendario\",\n    filter_formula='{Estado}=\"Enviado a aprobacion\"'\n  - \"Cual es el estado del post de Mendoza?\" -> table=\"calendario\"\n  - \"Alguien de infraestructura me escribio en LinkedIn?\" -> table=\"leads\"\n  - \"Que leads estan sin respuesta?\" -> table=\"leads\",\n    filter_formula='{Estado}=\"Entrante\"'",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "type": "string"
+        },
+        "filter_formula": {
+          "default": "",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "table"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "kai_read",
     "description": "Read a file from the company brain — whole, or a window of it.\n\n`path` is relative to the company root (e.g. \"todos.md\",\n\"reuniones/2026-06-17.md\"). For long files (transcripts, ledgers) pass\n`offset` (1-based start line) and `limit` (max lines) to page through\nwithout loading everything; the result includes `total_lines` and the\n`start_line`/`end_line` returned. Use kai_list to discover paths and\nkai_search to find files by content.",
     "inputSchema": {

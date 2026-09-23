@@ -53,4 +53,5 @@ async def test_catalog_has_expected_tools():
         "kai_read_sheet",
         "kai_read_doc",
         "kai_runtime_config",
+        "kai_query_airtable",
     }

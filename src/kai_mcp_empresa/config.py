@@ -21,9 +21,6 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore",
         populate_by_name=True,
-        # case_sensitive is REQUIRED: without it the `path` field matches the
-        # shell's $PATH env var (case-insensitive), mounting the server at a
-        # garbage URL. Aliases are explicit uppercase, so this is safe.
         case_sensitive=True,
     )
 
@@ -38,9 +35,6 @@ class Settings(BaseSettings):
     # Auth — bearer tokens. JSON map:
     #   { "<token>": { "tenant": "koi", "user": "mili", "role": "cfo" }, ... }
     # Whitelist == the set of tokens present. Revoke == delete an entry.
-    # Two ways to supply it (env var wins): KAI_TOKENS_JSON carries the JSON
-    # inline (12-factor — use this on Railway/cloud, store it as a secret), or
-    # KAI_TOKENS_FILE points at a file on disk (local dev).
     tokens_json: str | None = Field(None, alias="KAI_TOKENS_JSON")
     tokens_file: Path = Field(Path("./tokens.json"), alias="KAI_TOKENS_FILE")
 
@@ -51,7 +45,6 @@ class Settings(BaseSettings):
 
     # Write guardrails.
     max_file_bytes: int = Field(1_000_000, alias="KAI_MAX_FILE_BYTES")
-    # Extensions a tool may read/write. Keeps the brain text/markdown, not binaries.
     allowed_suffixes: tuple[str, ...] = (
         ".md",
         ".markdown",
@@ -66,9 +59,12 @@ class Settings(BaseSettings):
     git_enabled: bool = Field(True, alias="KAI_GIT_ENABLED")
     git_timeout_s: float = Field(10.0, alias="KAI_GIT_TIMEOUT_S")
 
-    # Google Drive integration (optional). Set to the service account key JSON
-    # (full file contents) to enable kai_read_sheet and kai_list_drive.
+    # Google Drive integration (optional).
     google_sa_json: str | None = Field(None, alias="KAI_GOOGLE_SA_JSON")
+
+    # Airtable integration (optional). Set to a Personal Access Token with
+    # data.records:read scope on base appA00Nc1qVXa1lar.
+    airtable_token: str | None = Field(None, alias="KAI_AIRTABLE_TOKEN")
 
     # Google Calendar OAuth (per-user). Create an OAuth 2.0 Client ID in Google
     # Cloud Console (type: Web application). Add the callback URL below as an
@@ -88,7 +84,6 @@ class Settings(BaseSettings):
     def validate_fail_closed(self) -> None:
         """Refuse to start in an unsafe configuration."""
         if self.auth_disabled:
-            # The dev escape hatch must never be reachable off-host.
             if self.host not in ("127.0.0.1", "localhost", "::1"):
                 raise SystemExit(
                     f"FATAL: KAI_AUTH_DISABLED=true is dev-only and refuses to bind to a "
