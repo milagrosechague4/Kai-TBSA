@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     # (full file contents) to enable kai_read_sheet and kai_list_drive.
     google_sa_json: str | None = Field(None, alias="KAI_GOOGLE_SA_JSON")
 
+    # Google Calendar OAuth (per-user). Create an OAuth 2.0 Client ID in Google
+    # Cloud Console (type: Web application). Add the callback URL below as an
+    # authorized redirect URI. Set both env vars on Railway to enable kai_calendar.
+    google_oauth_client_id: str | None = Field(None, alias="KAI_GOOGLE_OAUTH_CLIENT_ID")
+    google_oauth_client_secret: str | None = Field(None, alias="KAI_GOOGLE_OAUTH_CLIENT_SECRET")
+    # Public base URL of this server — used to build the OAuth redirect URI.
+    # Example: https://stunning-spontaneity-production-4cbd.up.railway.app
+    oauth_base_url: str = Field("http://localhost:8080", alias="KAI_OAUTH_BASE_URL")
+
     # Observability: one JSON line per tool call to stdout (Railway captures it).
     log_toolcalls: bool = Field(True, alias="KAI_LOG_TOOLCALLS")
 
