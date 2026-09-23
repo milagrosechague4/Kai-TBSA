@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 
 from fastmcp import FastMCP
@@ -29,9 +30,12 @@ from .tools.plugin import register_plugin
 _STATE_TTL_S = 600
 
 
-def _make_state(tenant: str, user: str, client_secret: str) -> str:
+def _make_state(tenant: str, user: str, client_secret: str, code_verifier: str | None = None) -> str:
+    data: dict = {"t": tenant, "u": user, "ts": int(time.time())}
+    if code_verifier:
+        data["cv"] = code_verifier
     payload = base64.urlsafe_b64encode(
-        json.dumps({"t": tenant, "u": user, "ts": int(time.time())}).encode()
+        json.dumps(data).encode()
     ).decode().rstrip("=")
     sig = hmac.new(client_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:20]
     return f"{payload}.{sig}"
@@ -116,12 +120,19 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
             redirect_uri=redirect_uri,
         )
 
-        state = _make_state(ctx.tenant, ctx.user, settings.google_oauth_client_secret)
+        code_verifier = secrets.token_urlsafe(64)
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b"=").decode()
+
+        state = _make_state(ctx.tenant, ctx.user, settings.google_oauth_client_secret, code_verifier)
         auth_url, _ = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
             prompt="consent",
             state=state,
+            code_challenge=code_challenge,
+            code_challenge_method="S256",
         )
         return RedirectResponse(auth_url)
 
@@ -152,6 +163,7 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
             )
 
         tenant, user = ctx_data["t"], ctx_data["u"]
+        code_verifier = ctx_data.get("cv")
 
         from google_auth_oauthlib.flow import Flow
 
@@ -172,7 +184,7 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
         )
 
         try:
-            flow.fetch_token(code=code)
+            flow.fetch_token(code=code, code_verifier=code_verifier)
         except Exception as exc:
             return HTMLResponse(
                 f"<h2>Error intercambiando el código de autorización.</h2><p>{exc}</p>",
