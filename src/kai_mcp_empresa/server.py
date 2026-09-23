@@ -179,6 +179,51 @@ def build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
                 status_code=500,
             )
 
+        # ── Domain restriction ────────────────────────────────────────────────
+        # If KAI_OAUTH_ALLOWED_DOMAIN is set (e.g. "tbsa.ar"), reject any Google
+        # account that doesn't belong to that domain before saving credentials.
+        if settings.oauth_allowed_domain:
+            try:
+                from googleapiclient.discovery import build as _build
+                userinfo_svc = _build("oauth2", "v2", credentials=flow.credentials, cache_discovery=False)
+                user_info = userinfo_svc.userinfo().get().execute()
+                email: str = user_info.get("email", "").lower()
+                allowed = settings.oauth_allowed_domain.lower().lstrip("@")
+                if not email.endswith(f"@{allowed}"):
+                    return HTMLResponse(
+                        f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Kai Brain · Cuenta no autorizada</title>
+  <style>
+    body {{ font-family: -apple-system, sans-serif; background: #101820; color: #d8e2ea;
+           display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+    .box {{ text-align: center; max-width: 440px; padding: 40px; }}
+    .icon {{ font-size: 48px; margin-bottom: 16px; }}
+    h1 {{ font-size: 20px; font-weight: 700; color: #fff; margin: 0 0 10px; }}
+    p {{ font-size: 14px; color: #6b7c8f; line-height: 1.6; margin: 0 0 8px; }}
+    .email {{ color: #C41230; font-weight: 600; }}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="icon">✗</div>
+    <h1>Cuenta no autorizada</h1>
+    <p>Solo se pueden conectar cuentas <span class="email">@{allowed}</span>.</p>
+    <p>Intentaste con <span class="email">{email}</span>.</p>
+    <p style="margin-top:16px;">Volvé a intentarlo con tu cuenta de TBSA.</p>
+  </div>
+</body>
+</html>""",
+                        status_code=403,
+                    )
+            except Exception as exc:
+                return HTMLResponse(
+                    f"<h2>No se pudo verificar el dominio de la cuenta.</h2><p>{exc}</p>",
+                    status_code=500,
+                )
+
         save_user_creds(
             settings.data_root,
             tenant,

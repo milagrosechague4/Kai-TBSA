@@ -18,7 +18,11 @@ from fastmcp import FastMCP
 from ..config import Settings
 from ..identity import current_context
 
-CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+CALENDAR_SCOPES = [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "openid",
+    "email",
+]
 
 _NOT_CONFIGURED = {
     "error": (

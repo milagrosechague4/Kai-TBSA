@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # Public base URL of this server — used to build the OAuth redirect URI.
     # Example: https://stunning-spontaneity-production-4cbd.up.railway.app
     oauth_base_url: str = Field("http://localhost:8080", alias="KAI_OAUTH_BASE_URL")
+    # If set, only Google accounts with this domain can connect their calendar.
+    # Example: tbsa.ar — rejects gmail.com or any other domain at the callback.
+    oauth_allowed_domain: str | None = Field(None, alias="KAI_OAUTH_ALLOWED_DOMAIN")
 
     # Observability: one JSON line per tool call to stdout (Railway captures it).
     log_toolcalls: bool = Field(True, alias="KAI_LOG_TOOLCALLS")
