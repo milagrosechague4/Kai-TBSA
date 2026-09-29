@@ -109,9 +109,6 @@ def _fetch(token: str, table_info: dict, formula: str, limit: int) -> dict[str, 
     if sort_field:
         params["sort[0][field]"] = sort_field
         params["sort[0][direction]"] = sort_dir
-    else:
-        params["sort[0][field]"] = "createdTime"
-        params["sort[0][direction]"] = sort_dir
 
     url = f"{_API_BASE}/{_BASE_ID}/{table_id}?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
