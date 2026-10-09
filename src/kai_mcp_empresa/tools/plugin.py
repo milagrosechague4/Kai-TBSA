@@ -328,11 +328,12 @@ _OPENAPI_SPEC = {
         "/api/airtable": {
             "get": {
                 "operationId": "queryAirtable",
-                "summary": "Consultar Airtable — calendario de contenido o leads de LinkedIn",
+                "summary": "Consultar Airtable — calendario, leads o cobertura mediática",
                 "description": (
                     "Consulta la base Airtable de TBSA. "
                     "table='calendario' devuelve el Calendario de Contenido (posts LinkedIn: estado, fechas, canal). "
                     "table='leads' devuelve los mensajes y contactos entrantes de LinkedIn. "
+                    "table='cobertura' devuelve la Cobertura Mediática (artículos de prensa: medio, título, URL, fecha, estado de difusión). "
                     "Usar filter_formula para filtrar por estado, tipo u otros campos."
                 ),
                 "parameters": [
@@ -340,8 +341,8 @@ _OPENAPI_SPEC = {
                         "name": "table",
                         "in": "query",
                         "required": True,
-                        "description": "Tabla a consultar: 'calendario' (posts LinkedIn) o 'leads' (mensajes/contactos LinkedIn).",
-                        "schema": {"type": "string", "enum": ["calendario", "leads"]},
+                        "description": "Tabla a consultar: 'calendario' (posts LinkedIn), 'leads' (contactos LinkedIn) o 'cobertura' (prensa).",
+                        "schema": {"type": "string", "enum": ["calendario", "leads", "cobertura"]},
                     },
                     {
                         "name": "filter_formula",
@@ -613,7 +614,7 @@ def register_plugin(mcp: FastMCP, settings: Settings) -> None:
             return err
         table = request.query_params.get("table", "")
         if not table:
-            return _err("table is required. Options: 'calendario', 'leads'")
+            return _err("table is required. Options: 'calendario', 'leads', 'cobertura'")
         filter_formula = request.query_params.get("filter_formula", "")
         try:
             limit = int(request.query_params.get("limit", "50"))
