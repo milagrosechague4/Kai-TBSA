@@ -43,6 +43,13 @@ _TABLES: dict[str, dict[str, str]] = {
         "default_sort_field": "",
         "default_sort_direction": "desc",
     },
+    "cobertura": {
+        "id": "tblyYLBqNMsz8mXSj",
+        "name": "Cobertura Mediática",
+        "description": "Artículos de prensa trackeados — medio, título, URL, fecha, estado de difusión.",
+        "default_sort_field": "Fecha artículo",
+        "default_sort_direction": "desc",
+    },
 }
 
 _NOT_CONFIGURED = {
@@ -149,6 +156,7 @@ def register_airtable_tools(mcp: FastMCP, settings: Settings) -> None:
         table: which table to query. Options:
           - "calendario" -> Calendario de Contenido (posts LinkedIn: estado, fecha, canal, copy)
           - "leads"      -> LinkedIn Mensajes Sebastian (contactos: tipo, prioridad, estado, notas)
+          - "cobertura"  -> Cobertura Mediática (prensa: medio, título, URL, fecha, estado difusión)
 
         filter_formula: optional Airtable formula to filter records. Examples:
           - '{Estado} = "Aprobado"'
@@ -167,6 +175,10 @@ def register_airtable_tools(mcp: FastMCP, settings: Settings) -> None:
           - "Alguien de infraestructura me escribio en LinkedIn?" -> table="leads"
           - "Que leads estan sin respuesta?" -> table="leads",
             filter_formula='{Estado}="Entrante"'
+          - "Que cobertura mediatica tuvimos en septiembre?" -> table="cobertura",
+            filter_formula='FIND("2026-09", {Fecha artículo})'
+          - "Que articulos estan trackeados sin accion?" -> table="cobertura",
+            filter_formula='{Estado}="Trackeado"'
         """
         if not token:
             return _NOT_CONFIGURED
