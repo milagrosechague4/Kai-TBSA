@@ -364,6 +364,29 @@ _OPENAPI_SPEC = {
                 "responses": {"200": {"description": "Registros de Airtable como tabla markdown"}},
             }
         },
+        "/api/calendar": {
+            "get": {
+                "operationId": "getCalendar",
+                "summary": "Agenda personal del usuario — Google Calendar",
+                "description": (
+                    "Devuelve los próximos eventos del Google Calendar personal del usuario. "
+                    "Usar para responder preguntas como '¿tengo algo hoy?', '¿cuándo es mi próxima reunión?', "
+                    "'¿qué tengo esta semana?'. "
+                    "Requiere que el usuario haya conectado su Google Calendar previamente. "
+                    "Si no está conectado, devuelve instrucciones para hacerlo (toma 30 segundos). "
+                    "La agenda es personal — nunca se comparte con otros usuarios ni se escribe al brain."
+                ),
+                "parameters": [
+                    {
+                        "name": "days_ahead",
+                        "in": "query",
+                        "description": "Días hacia adelante a consultar (default 7, máx 30).",
+                        "schema": {"type": "integer", "default": 7},
+                    }
+                ],
+                "responses": {"200": {"description": "Lista de eventos del calendario personal"}},
+            }
+        },
         "/api/config": {
             "get": {
                 "operationId": "getConfig",
@@ -581,6 +604,60 @@ def register_plugin(mcp: FastMCP, settings: Settings) -> None:
             return JSONResponse(result)
         except fs.PathError as exc:
             return _err(str(exc), 404)
+
+    # ── Google Calendar ───────────────────────────────────────────────────────
+
+    @mcp.custom_route("/api/calendar", methods=["GET"])
+    async def api_calendar(request: Request) -> JSONResponse:
+        ctx, _, err = resolve_caller(settings, request)
+        if err:
+            return err
+        try:
+            days_ahead = max(1, min(int(request.query_params.get("days_ahead", "7")), 30))
+        except ValueError:
+            days_ahead = 7
+        if not settings.google_oauth_client_id:
+            return JSONResponse({
+                "error": "Google Calendar no disponible. Configurar KAI_GOOGLE_OAUTH_CLIENT_ID y KAI_GOOGLE_OAUTH_CLIENT_SECRET."
+            })
+        from .calendar import load_user_creds
+        import asyncio
+        from datetime import datetime, timedelta, timezone
+        def _fetch():
+            creds = load_user_creds(settings.data_root, ctx.tenant, ctx.user)
+            if creds is None:
+                return {
+                    "error": "Tu Google Calendar no está conectado todavía.",
+                    "accion": f"Visitá {settings.oauth_base_url}/oauth/google/start?token=<tu-token-kai> para conectarlo (solo una vez, toma 30 segundos).",
+                }
+            from googleapiclient.discovery import build
+            svc = build("calendar", "v3", credentials=creds, cache_discovery=False)
+            now = datetime.now(timezone.utc)
+            until = now + timedelta(days=days_ahead)
+            result = svc.events().list(
+                calendarId="primary",
+                timeMin=now.isoformat(),
+                timeMax=until.isoformat(),
+                maxResults=50,
+                singleEvents=True,
+                orderBy="startTime",
+            ).execute()
+            events = result.get("items", [])
+            formatted = []
+            for e in events:
+                start = e.get("start", {})
+                end = e.get("end", {})
+                formatted.append({
+                    "titulo": e.get("summary", "(sin título)"),
+                    "inicio": start.get("dateTime") or start.get("date", ""),
+                    "fin": end.get("dateTime") or end.get("date", ""),
+                    "ubicacion": e.get("location", ""),
+                    "descripcion": (e.get("description") or "")[:300],
+                    "link": e.get("htmlLink", ""),
+                    "todo_el_dia": "date" in start and "dateTime" not in start,
+                })
+            return {"usuario": ctx.user, "periodo_dias": days_ahead, "total": len(formatted), "eventos": formatted}
+        return JSONResponse(await asyncio.to_thread(_fetch))
 
     # ── Runtime config ────────────────────────────────────────────────────────
 
